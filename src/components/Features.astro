@@ -1,0 +1,121 @@
+---
+import FeatureRow from "./FeatureRow.astro";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    blocks: {
+      kicker: "One file · many blocks",
+      title: "Markdown that",
+      titleEm: "runs.",
+      body: "Each block is executable: HTTP requests and SQL queries (PostgreSQL, MySQL, SQLite). Captures from one block become variables for the next, chaining the entire flow inside a single .md.",
+      points: [
+        '<b>Chained captures</b> — reuse a value from one response as <code>{{login.body.token}}</code> in the next block.',
+        '<b>Assertions</b> — an <code># expect:</code> section with lines like <code>time &lt; 500ms</code> fails the runbook on regression.',
+        '<b>Variables &amp; secrets</b> referenced by key. The value never touches git.',
+      ],
+    },
+    schema: {
+      kicker: "Database-native",
+      title: "Schema explorer next to the",
+      titleEm: "editor.",
+      body: "Connect PostgreSQL, MySQL, and SQLite. Browse tables with foreign keys, indexes, and row counts. EXPLAIN ANALYZE in tree form shows where your query spends time.",
+      points: [
+        '<b>Multi-database</b> in a single runbook — query PostgreSQL, then MySQL, without switching windows.',
+        '<b>Mutation guard</b> — destructive SQL (UPDATE / DELETE) warns before it runs.',
+        '<b>EXPLAIN ANALYZE</b> in tree form, with slow sequential scans highlighted.',
+      ],
+    },
+    git: {
+      kicker: "Git-native · diffable",
+      title: "Versioned. Reviewable.",
+      titleEm: "Sharable.",
+      body: "Runbooks are .md files in your repo. Pull request review like any other code. Diff between runs shows what changed in the response across executions.",
+      points: [
+        '<b>PR review</b> for runbooks on GitHub or GitLab.',
+        "<b>Diff between runs</b> — compare today's execution with yesterday's in two clicks.",
+        '<b>Share the repo URL</b> — HTTPS, SSH, or web — for any runbook in one click.',
+      ],
+    },
+  },
+  "pt-br": {
+    blocks: {
+      kicker: "Um arquivo · vários blocos",
+      title: "Markdown que",
+      titleEm: "executa.",
+      body: "Cada bloco é executável: requisições HTTP e SQL (PostgreSQL, MySQL, SQLite). Capturas de um bloco viram variáveis do próximo, encadeando todo o fluxo dentro de um único .md.",
+      points: [
+        '<b>Capturas encadeadas</b> — reutilize um valor de uma resposta como <code>{{login.body.token}}</code> no próximo bloco.',
+        '<b>Asserções</b> — uma seção <code># expect:</code> com linhas como <code>time &lt; 500ms</code> falha o runbook em regressão.',
+        '<b>Variáveis e segredos</b> referenciados por chave. O valor nunca vai pro git.',
+      ],
+    },
+    schema: {
+      kicker: "Nativo de banco",
+      title: "Schema explorer ao lado do",
+      titleEm: "editor.",
+      body: "Conecta PostgreSQL, MySQL e SQLite. Navega tabelas com foreign keys, índices e row count. EXPLAIN ANALYZE em árvore mostra onde sua query gasta tempo.",
+      points: [
+        '<b>Multi-banco</b> em um único runbook — consulte PostgreSQL e depois MySQL sem trocar de janela.',
+        '<b>Mutation guard</b> — SQL destrutivo (UPDATE / DELETE) avisa antes de rodar.',
+        '<b>EXPLAIN ANALYZE</b> em formato árvore, com seq scans lentos destacados.',
+      ],
+    },
+    git: {
+      kicker: "Nativo de git · diffável",
+      title: "Versionado. Revisável.",
+      titleEm: "Compartilhável.",
+      body: "Runbooks são .md no seu repo. Revisão por pull request igual qualquer código. Diff entre execuções mostra o que mudou na resposta.",
+      points: [
+        '<b>Code review</b> de runbooks no GitHub ou GitLab.',
+        '<b>Diff entre runs</b> — compare a execução de hoje com a de ontem em dois cliques.',
+        '<b>Compartilhe a URL do repo</b> — HTTPS, SSH ou web — pra qualquer runbook em um clique.',
+      ],
+    },
+  },
+  es: {
+    blocks: {
+      kicker: "Un archivo · varios bloques",
+      title: "Markdown que",
+      titleEm: "se ejecuta.",
+      body: "Cada bloque es ejecutable: peticiones HTTP y consultas SQL (PostgreSQL, MySQL, SQLite). Las capturas de un bloque se vuelven variables del siguiente, encadenando todo el flujo dentro de un único .md.",
+      points: [
+        '<b>Capturas encadenadas</b> — reutiliza un valor de una respuesta como <code>{{login.body.token}}</code> en el siguiente bloque.',
+        '<b>Aserciones</b> — una sección <code># expect:</code> con líneas como <code>time &lt; 500ms</code> hace fallar el runbook en regresión.',
+        '<b>Variables y secretos</b> referenciados por clave. El valor nunca toca git.',
+      ],
+    },
+    schema: {
+      kicker: "Nativo de base de datos",
+      title: "Schema explorer junto al",
+      titleEm: "editor.",
+      body: "Conecta PostgreSQL, MySQL y SQLite. Navega tablas con foreign keys, índices y row count. EXPLAIN ANALYZE en forma de árbol muestra dónde gasta tiempo tu query.",
+      points: [
+        '<b>Multi-base de datos</b> en un único runbook — consulta PostgreSQL y luego MySQL sin cambiar de ventana.',
+        '<b>Mutation guard</b> — SQL destructivo (UPDATE / DELETE) avisa antes de correr.',
+        '<b>EXPLAIN ANALYZE</b> en forma de árbol, con seq scans lentos resaltados.',
+      ],
+    },
+    git: {
+      kicker: "Nativo de git · diffeable",
+      title: "Versionado. Revisable.",
+      titleEm: "Compartible.",
+      body: "Los runbooks son .md en tu repo. Revisión por pull request como cualquier código. Diff entre runs muestra qué cambió en la respuesta.",
+      points: [
+        '<b>Code review</b> de runbooks en GitHub o GitLab.',
+        '<b>Diff entre runs</b> — compara la ejecución de hoy con la de ayer en dos clicks.',
+        '<b>Comparte la URL del repo</b> — HTTPS, SSH o web — para cualquier runbook en un click.',
+      ],
+    },
+  },
+};
+const t = copy[lang];
+---
+
+<FeatureRow {...t.blocks} />
+<FeatureRow reverse {...t.schema} />
+<FeatureRow {...t.git} />

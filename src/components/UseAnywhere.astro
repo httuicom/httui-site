@@ -1,0 +1,173 @@
+---
+import { css } from "../../styled-system/css";
+import Eyebrow from "./Eyebrow.astro";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    kicker: "httui-lang · LSP",
+    title: "Use it",
+    titleEm: "anywhere.",
+    body: "The .httui block format is a real language with a tree-sitter grammar and an LSP server. Runbooks get autocomplete, hover, and go-to-definition for references — inside any editor that speaks LSP.",
+    editors: ["VS Code", "Neovim", "Zed", "Helix", "IntelliJ", "Sublime"],
+    snippetTitle: "smoke-test.httui",
+    note: "Built into the desktop app · standalone binary for terminals · publish your grammar to any package registry.",
+  },
+  "pt-br": {
+    kicker: "httui-lang · LSP",
+    title: "Use em",
+    titleEm: "qualquer lugar.",
+    body: "O formato dos blocos .httui é uma linguagem de verdade com grammar tree-sitter e servidor LSP. Runbooks ganham autocomplete, hover e go-to-definition pra referências — dentro de qualquer editor que fale LSP.",
+    editors: ["VS Code", "Neovim", "Zed", "Helix", "IntelliJ", "Sublime"],
+    snippetTitle: "smoke-test.httui",
+    note: "Embutido no app desktop · binário standalone pra terminais · publique a grammar em qualquer registry de pacotes.",
+  },
+  es: {
+    kicker: "httui-lang · LSP",
+    title: "Úsalo en",
+    titleEm: "cualquier lugar.",
+    body: "El formato de los bloques .httui es un lenguaje de verdad con grammar tree-sitter y servidor LSP. Los runbooks reciben autocomplete, hover y go-to-definition de referencias — dentro de cualquier editor que hable LSP.",
+    editors: ["VS Code", "Neovim", "Zed", "Helix", "IntelliJ", "Sublime"],
+    snippetTitle: "smoke-test.httui",
+    note: "Integrado en el app de escritorio · binario standalone para terminales · publica la grammar en cualquier registry de paquetes.",
+  },
+};
+const t = copy[lang];
+
+const section = css({
+  px: { base: "6", md: "16" },
+  py: { base: "16", md: "24" },
+  bg: "bg.surface",
+  borderTop: "1px solid",
+  borderBottom: "1px solid",
+  borderColor: "border",
+});
+const inner = css({
+  maxW: "1280px",
+  mx: "auto",
+  display: "grid",
+  gridTemplateColumns: { base: "1fr", lg: "1fr 1.1fr" },
+  gap: { base: "10", lg: "16" },
+  alignItems: "center",
+});
+const h2 = css({
+  mt: "3",
+  fontFamily: "heading",
+  fontWeight: "600",
+  fontSize: { base: "32px", md: "44px" },
+  lineHeight: "1.1",
+  letterSpacing: "tight",
+  color: "fg",
+});
+const em = css({ fontStyle: "italic", color: "accent" });
+const bodyCls = css({
+  mt: "4",
+  fontSize: "md",
+  lineHeight: "1.6",
+  color: "fg.muted",
+  maxW: "520px",
+});
+const chips = css({
+  mt: "6",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "2",
+});
+const chip = css({
+  px: "3",
+  py: "1.5",
+  fontSize: "13px",
+  fontFamily: "mono",
+  color: "fg",
+  bg: "bg",
+  border: "1px solid",
+  borderColor: "border",
+  rounded: "full",
+});
+const note = css({
+  mt: "6",
+  fontSize: "xs",
+  color: "fg.subtle",
+  lineHeight: "1.6",
+  maxW: "520px",
+});
+const codeCard = css({
+  bg: "stone.900",
+  color: "paper.100",
+  rounded: "lg",
+  border: "1px solid",
+  borderColor: "stone.500",
+  overflow: "hidden",
+  fontFamily: "mono",
+  fontSize: "13px",
+  lineHeight: "1.65",
+  boxShadow: "card",
+});
+const codeHeader = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+  px: "3.5",
+  py: "2.5",
+  borderBottom: "1px solid",
+  borderColor: "stone.500",
+  fontSize: "11px",
+  color: "stone.200",
+});
+const dot = (c: string) =>
+  css({ raw: { w: "10px", h: "10px", rounded: "full", bg: c } });
+const codeBody = css({
+  px: "5",
+  py: "5",
+  overflow: "auto",
+});
+const k = css({ color: "canola.300" });
+const s = css({ color: "moss.300" });
+const c = css({ color: "stone.200", fontStyle: "italic" });
+const r = css({ color: "sky.300" });
+
+const snippet = `<span class="${c}"># Smoke test</span>
+<span class="${k}">http</span> <span class="${r}">alias</span>=<span class="${s}">login</span> <span class="${r}">timeout</span>=<span class="${s}">5000</span>
+POST https://api.example.com/auth/login
+Content-Type: application/json
+
+{ "user": "alice", "pwd": "{{<span class="${r}">SECRET</span>}}" }
+
+<span class="${k}">http</span> <span class="${r}">alias</span>=<span class="${s}">me</span>
+GET https://api.example.com/me
+Authorization: Bearer <span class="${r}">{{login.body.token}}</span>
+
+<span class="${c}"># expect:</span>
+<span class="${c}">#   status == 200</span>
+<span class="${c}">#   time &lt; 500ms</span>`;
+---
+
+<section class={section}>
+  <div class={inner}>
+    <div>
+      <Eyebrow>{t.kicker}</Eyebrow>
+      <h2 class={h2}>
+        {t.title} <em class={em}>{t.titleEm}</em>
+      </h2>
+      <p class={bodyCls}>{t.body}</p>
+      <div class={chips}>
+        {t.editors.map((e) => <span class={chip}>{e}</span>)}
+      </div>
+      <p class={note}>{t.note}</p>
+    </div>
+
+    <div class={codeCard}>
+      <div class={codeHeader}>
+        <span style="width:10px;height:10px;border-radius:9999px;background:#ed6a5e;"></span>
+        <span style="width:10px;height:10px;border-radius:9999px;background:#f4be4f;"></span>
+        <span style="width:10px;height:10px;border-radius:9999px;background:#62c554;"></span>
+        <span style="flex:1;text-align:center;">{t.snippetTitle}</span>
+      </div>
+      <pre class={codeBody}><code set:html={snippet} /></pre>
+    </div>
+  </div>
+</section>

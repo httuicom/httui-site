@@ -1,0 +1,59 @@
+---
+import { css } from "../../styled-system/css";
+
+interface Props {
+  variant?: "solid" | "ink" | "ghost";
+  size?: "sm" | "md";
+  href?: string;
+}
+
+const { variant = "solid", size = "md", href } = Astro.props;
+
+const base = css({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "1.5",
+  rounded: "full",
+  fontWeight: "600",
+  whiteSpace: "nowrap",
+  border: "1px solid",
+  cursor: "pointer",
+  transition: "filter .12s ease, transform .12s ease",
+  _hover: { filter: "brightness(1.05)" },
+  textDecoration: "none",
+});
+
+const sizes = {
+  sm: css({ px: "3.5", py: "1.5", fontSize: "xs" }),
+  md: css({ px: "4.5", py: "2.5", fontSize: "sm" }),
+};
+
+const variants = {
+  solid: css({
+    bg: "accent",
+    color: "accent.fg",
+    borderColor: "transparent",
+  }),
+  ink: css({
+    bg: "fg",
+    color: "bg",
+    borderColor: "transparent",
+  }),
+  ghost: css({
+    bg: "color-mix(in oklch, var(--colors-bg) 60%, transparent)",
+    color: "fg",
+    borderColor: "border.subtle",
+    backdropFilter: "blur(10px)",
+  }),
+};
+
+const cls = `${base} ${sizes[size]} ${variants[variant]}`;
+const Tag = href ? "a" : "span";
+---
+
+<Tag
+  class={cls}
+  {...(href ? { href, target: "_blank", rel: "noreferrer" } : {})}
+>
+  <slot />
+</Tag>

@@ -1,0 +1,110 @@
+---
+import { css } from "../../styled-system/css";
+import Pill from "./Pill.astro";
+import { repoUrl, docsHref } from "../lib/i18n";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    titleA: "Stop debugging in",
+    titleEm1: "five tabs.",
+    titleB: "Start writing",
+    titleEm2: "runbooks",
+    titleC: "instead.",
+    sub: "Open source, MIT licensed.",
+    subCode: "curl -fsSL https://httui.com/install.sh | sh",
+    subAfter: "and it's yours.",
+    cta: "Get started",
+    docs: "Read the docs",
+  },
+  "pt-br": {
+    titleA: "Pare de debugar em",
+    titleEm1: "cinco abas.",
+    titleB: "Comece a escrever",
+    titleEm2: "runbooks",
+    titleC: "no lugar.",
+    sub: "Código aberto, licença MIT.",
+    subCode: "curl -fsSL https://httui.com/install.sh | sh",
+    subAfter: "e é seu.",
+    cta: "Começar",
+    docs: "Ler os docs",
+  },
+  es: {
+    titleA: "Deja de depurar en",
+    titleEm1: "cinco pestañas.",
+    titleB: "Empieza a escribir",
+    titleEm2: "runbooks",
+    titleC: "en su lugar.",
+    sub: "Código abierto, licencia MIT.",
+    subCode: "curl -fsSL https://httui.com/install.sh | sh",
+    subAfter: "y es tuyo.",
+    cta: "Empezar",
+    docs: "Leer los docs",
+  },
+};
+const t = copy[lang];
+
+const section = css({
+  px: { base: "6", md: "20" },
+  py: { base: "20", md: "28" },
+  textAlign: "center",
+  bgGradient: "linear-gradient(to bottom, var(--colors-bg) 0%, var(--colors-bg-surface) 100%)",
+  borderTop: "1px solid",
+  borderColor: "border",
+});
+const h2 = css({
+  fontFamily: "heading",
+  fontWeight: "600",
+  fontSize: { base: "40px", md: "64px" },
+  lineHeight: "1.05",
+  letterSpacing: "tight",
+  color: "fg",
+  maxW: "920px",
+  mx: "auto",
+  textWrap: "balance",
+});
+const emMuted = css({ fontStyle: "italic", color: "fg.muted" });
+const emAccent = css({ fontStyle: "italic", color: "accent" });
+const sub = css({
+  mt: "5",
+  fontFamily: "heading",
+  fontSize: "17px",
+  color: "fg.muted",
+  maxW: "540px",
+  mx: "auto",
+});
+const codeInline = css({
+  fontFamily: "mono",
+  bg: "bg.elevated",
+  px: "1.5",
+  py: "0.5",
+  rounded: "sm",
+  fontSize: "13px",
+});
+const ctaRow = css({
+  display: "flex",
+  gap: "3",
+  justifyContent: "center",
+  mt: "9",
+  flexWrap: "wrap",
+});
+---
+
+<section class={section}>
+  <h2 class={h2}>
+    {t.titleA} <em class={emMuted}>{t.titleEm1}</em>
+    <br />
+    {t.titleB} <em class={emAccent}>{t.titleEm2}</em> {t.titleC}
+  </h2>
+  <p class={sub}>
+    {t.sub} <span class={codeInline}>{t.subCode}</span> {t.subAfter}
+  </p>
+  <div class={ctaRow}>
+    <Pill variant="solid" href={repoUrl}>{t.cta}</Pill>
+    <Pill variant="ghost" href={docsHref(lang)}>{t.docs}</Pill>
+  </div>
+</section>

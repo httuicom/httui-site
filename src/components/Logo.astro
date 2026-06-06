@@ -1,0 +1,49 @@
+---
+interface Props {
+  variant?: "logo" | "full";
+  size?: number;
+}
+
+const { variant = "logo", size = 22 } = Astro.props;
+---
+
+{variant === "full" ? (
+  <>
+    <img
+      src="/httui-light-full.png"
+      alt="httui"
+      style={`display:block;height:${size}px;width:auto;`}
+      data-logo="light"
+    />
+    <img
+      src="/httui-dark-full.png"
+      alt="httui"
+      style={`display:none;height:${size}px;width:auto;`}
+      data-logo="dark"
+    />
+  </>
+) : (
+  <>
+    <img
+      src="/httui-light-logo.svg"
+      alt="httui"
+      width={size}
+      height={size}
+      style="display:block;"
+      data-logo="light"
+    />
+    <img
+      src="/httui-dark-logo.png"
+      alt="httui"
+      width={size}
+      height={size}
+      style="display:none;"
+      data-logo="dark"
+    />
+  </>
+)}
+
+<style is:global>
+  html[data-theme="dark"] [data-logo="light"] { display: none !important; }
+  html[data-theme="dark"] [data-logo="dark"]  { display: block !important; }
+</style>

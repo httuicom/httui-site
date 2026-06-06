@@ -1,0 +1,40 @@
+---
+title: Primeros pasos
+description: Del install al primer bloque HTTP y SQL ejecutándose. ~10 minutos.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Traducción en progreso">
+  Esta página aún está siendo traducida. Para leer la versión completa
+  en inglés, [ve a `/docs/getting-started`](/docs/getting-started).
+</Aside>
+
+Esta guía te lleva desde un install limpio de httui hasta correr tus
+primeros bloques HTTP y SQL. ~10 minutos.
+
+## Instalar
+
+httui es una app de escritorio (Tauri) + un binario de terminal (TUI).
+Cada release publica installers listos; también puedes buildar desde
+el código.
+
+### Script de instalación (macOS & Linux)
+
+```bash
+curl -fsSL https://httui.com/install.sh | sh
+```
+
+Resuelve la última release e instala el `.app` en macOS (limpiando
+la cuarentena de Gatekeeper) o el AppImage en Linux.
+
+### Homebrew (macOS & Linux)
+
+```bash
+brew tap httuicom/httui
+brew install --cask httui
+```
+
+El resto de esta guía sigue en inglés — siéntete libre de contribuir
+con la traducción en
+[github.com/httuicom/httui-site](https://github.com/httuicom/httui-site).

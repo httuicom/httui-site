@@ -1,0 +1,190 @@
+---
+import { css } from "../../styled-system/css";
+import Logo from "./Logo.astro";
+import { ThemeToggle } from "./ThemeToggle";
+import { repoUrl, stats, docsHref } from "../lib/i18n";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const blob = `${repoUrl}/blob/main`;
+const docsBase = lang === "en" ? "/docs" : `/${lang}/docs`;
+
+const copy = {
+  en: {
+    tagline: `The markdown editor for debugging APIs and databases. Open source · MIT · ${stats.version}.`,
+    made: "Made with markdown.",
+    copyright: "© 2026 httui contributors",
+    cols: [
+      { h: "Product", l: [
+        { t: "Download", href: "#install" },
+        { t: "Changelog", href: `${blob}/CHANGELOG.md` },
+      ]},
+      { h: "Docs", l: [
+        { t: "Getting started", href: `${docsBase}/getting-started` },
+        { t: "Concepts", href: `${docsBase}` },
+        { t: "Blocks", href: `${docsBase}` },
+        { t: "httui-lang", href: `${docsBase}` },
+      ]},
+      { h: "Community", l: [
+        { t: "GitHub", href: repoUrl },
+        { t: "Contributing", href: `${blob}/CONTRIBUTING.md` },
+        { t: "Code of Conduct", href: `${blob}/CODE_OF_CONDUCT.md` },
+      ]},
+      { h: "Legal", l: [
+        { t: "MIT License", href: `${blob}/LICENSE` },
+        { t: "Security", href: `${blob}/SECURITY.md` },
+      ]},
+    ],
+  },
+  "pt-br": {
+    tagline: `Editor markdown pra debugar APIs e bancos. Código aberto · MIT · ${stats.version}.`,
+    made: "Feito com markdown.",
+    copyright: "© 2026 colaboradores do httui",
+    cols: [
+      { h: "Produto", l: [
+        { t: "Download", href: "#install" },
+        { t: "Novidades", href: `${blob}/CHANGELOG.md` },
+      ]},
+      { h: "Docs", l: [
+        { t: "Primeiros passos", href: `${docsBase}/getting-started` },
+        { t: "Conceitos", href: `${docsBase}` },
+        { t: "Blocos", href: `${docsBase}` },
+        { t: "httui-lang", href: `${docsBase}` },
+      ]},
+      { h: "Comunidade", l: [
+        { t: "GitHub", href: repoUrl },
+        { t: "Contribuir", href: `${blob}/CONTRIBUTING.md` },
+        { t: "Código de conduta", href: `${blob}/CODE_OF_CONDUCT.md` },
+      ]},
+      { h: "Legal", l: [
+        { t: "Licença MIT", href: `${blob}/LICENSE` },
+        { t: "Segurança", href: `${blob}/SECURITY.md` },
+      ]},
+    ],
+  },
+  es: {
+    tagline: `Editor markdown para depurar APIs y bases de datos. Código abierto · MIT · ${stats.version}.`,
+    made: "Hecho con markdown.",
+    copyright: "© 2026 colaboradores de httui",
+    cols: [
+      { h: "Producto", l: [
+        { t: "Download", href: "#install" },
+        { t: "Cambios", href: `${blob}/CHANGELOG.md` },
+      ]},
+      { h: "Docs", l: [
+        { t: "Primeros pasos", href: `${docsBase}/getting-started` },
+        { t: "Conceptos", href: `${docsBase}` },
+        { t: "Bloques", href: `${docsBase}` },
+        { t: "httui-lang", href: `${docsBase}` },
+      ]},
+      { h: "Comunidad", l: [
+        { t: "GitHub", href: repoUrl },
+        { t: "Contribuir", href: `${blob}/CONTRIBUTING.md` },
+        { t: "Código de Conducta", href: `${blob}/CODE_OF_CONDUCT.md` },
+      ]},
+      { h: "Legal", l: [
+        { t: "Licencia MIT", href: `${blob}/LICENSE` },
+        { t: "Seguridad", href: `${blob}/SECURITY.md` },
+      ]},
+    ],
+  },
+};
+const t = copy[lang];
+
+const footer = css({
+  px: { base: "6", md: "20" },
+  pt: "14",
+  pb: "9",
+  bg: "bg.surface",
+  borderTop: "1px solid",
+  borderColor: "border",
+  fontSize: "xs",
+  color: "fg.muted",
+});
+const grid = css({
+  display: "grid",
+  gridTemplateColumns: { base: "repeat(2, 1fr)", md: "repeat(5, 1fr)" },
+  gap: "10",
+  maxW: "1280px",
+  mx: "auto",
+});
+const brandCol = css({ gridColumn: { base: "span 2", md: "span 1" } });
+const tagline = css({
+  mt: "3",
+  fontSize: "13px",
+  lineHeight: "1.55",
+  maxW: "280px",
+});
+const colHead = css({
+  fontSize: "11px",
+  fontWeight: "700",
+  letterSpacing: "wide",
+  color: "fg",
+  mb: "3",
+});
+const colList = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "1.5",
+  fontSize: "13px",
+  color: "fg.muted",
+});
+const link = css({
+  cursor: "pointer",
+  textDecoration: "none",
+  color: "fg.muted",
+  _hover: { color: "fg" },
+});
+const bar = css({
+  mt: "10",
+  pt: "4.5",
+  borderTop: "1px solid",
+  borderColor: "border",
+  display: "flex",
+  justifyContent: "space-between",
+  maxW: "1280px",
+  mx: "auto",
+  flexDirection: { base: "column", md: "row" },
+  gap: "2",
+});
+const barRight = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "3",
+});
+---
+
+<footer class={footer}>
+  <div class={grid}>
+    <div class={brandCol}>
+      <Logo variant="logo" size={28} />
+      <p class={tagline}>{t.tagline}</p>
+    </div>
+    {t.cols.map((col) => (
+      <div>
+        <div class={colHead}>{col.h}</div>
+        <div class={colList}>
+          {col.l.map((x) => (
+            <a
+              class={link}
+              href={x.href}
+              {...(x.href.startsWith("#") || x.href.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer" })}
+            >
+              {x.t}
+            </a>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+  <div class={bar}>
+    <span>{t.copyright}</span>
+    <div class={barRight}>
+      <span>{t.made}</span>
+      <ThemeToggle client:idle />
+    </div>
+  </div>
+</footer>

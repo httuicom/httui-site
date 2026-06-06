@@ -1,0 +1,151 @@
+---
+import { css } from "../../styled-system/css";
+import Eyebrow from "./Eyebrow.astro";
+import { stats, repoUrl } from "../lib/i18n";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    kicker: "Open source · MIT license",
+    tagline: "Built in the open. Hack on it, fork it, send a PR.",
+    labels: {
+      stars: "GitHub stars",
+      contributors: "contributors",
+      license: "license",
+      version: "latest release",
+    },
+    subs: {
+      contributors: "growing in the open",
+      license: "no strings attached",
+      version: "release pending",
+    },
+  },
+  "pt-br": {
+    kicker: "Código aberto · Licença MIT",
+    tagline: "Construído no aberto. Mexa, faça fork, mande PR.",
+    labels: {
+      stars: "Estrelas no GitHub",
+      contributors: "contribuidores",
+      license: "licença",
+      version: "última release",
+    },
+    subs: {
+      contributors: "crescendo no aberto",
+      license: "sem amarras",
+      version: "release pendente",
+    },
+  },
+  es: {
+    kicker: "Código abierto · Licencia MIT",
+    tagline: "Construido al aire libre. Tócalo, hazle fork, manda un PR.",
+    labels: {
+      stars: "Estrellas en GitHub",
+      contributors: "contribuyentes",
+      license: "licencia",
+      version: "última release",
+    },
+    subs: {
+      contributors: "creciendo al aire libre",
+      license: "sin ataduras",
+      version: "release pendiente",
+    },
+  },
+};
+const t = copy[lang];
+
+const cellData = [
+  { v: stats.stars, k: t.labels.stars, sub: repoUrl.replace(/^https?:\/\//, "") },
+  { v: stats.contributors, k: t.labels.contributors, sub: t.subs.contributors },
+  { v: stats.license, k: t.labels.license, sub: t.subs.license },
+  { v: stats.version, k: t.labels.version, sub: t.subs.version },
+];
+
+const cells = cellData.map((s, i) => {
+  const styles: string[] = [];
+  if (i % 2 === 0) styles.push("border-right: 1px solid var(--colors-border)");
+  if (i < 2) styles.push("border-bottom: 1px solid var(--colors-border)");
+  return { ...s, style: styles.join(";"), mdRight: i < 3 };
+});
+
+const section = css({
+  px: { base: "6", md: "14" },
+  pt: "24",
+  pb: "16",
+  bg: "bg",
+});
+const header = css({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "2.5",
+  mb: "9",
+});
+const tagline = css({
+  fontFamily: "heading",
+  fontSize: { base: "lg", md: "xl" },
+  fontStyle: "italic",
+  color: "fg.muted",
+  maxW: "620px",
+  textAlign: "center",
+});
+const grid = css({
+  maxW: "980px",
+  mx: "auto",
+  border: "1px solid",
+  borderColor: "border",
+  rounded: "lg",
+  bg: "bg.surface",
+  overflow: "hidden",
+  display: "grid",
+  gridTemplateColumns: { base: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+});
+const cellBase = css({
+  px: "5",
+  py: "6",
+  textAlign: "center",
+  borderColor: "border",
+});
+const cellValue = css({
+  fontFamily: "heading",
+  fontSize: "48px",
+  fontWeight: "600",
+  letterSpacing: "tight",
+  color: "fg",
+  lineHeight: "1",
+});
+const cellLabel = css({
+  mt: "2",
+  fontSize: "xs",
+  color: "fg.muted",
+  fontWeight: "500",
+});
+const cellSub = css({
+  mt: "0.5",
+  fontSize: "11px",
+  color: "fg.subtle",
+  fontFamily: "mono",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+---
+
+<section class={section}>
+  <header class={header}>
+    <Eyebrow color="fg.subtle">{t.kicker}</Eyebrow>
+    <p class={tagline}>{t.tagline}</p>
+  </header>
+  <div class={grid}>
+    {cells.map((s) => (
+      <div class={cellBase} style={s.style}>
+        <div class={cellValue}>{s.v}</div>
+        <div class={cellLabel}>{s.k}</div>
+        <div class={cellSub}>{s.sub}</div>
+      </div>
+    ))}
+  </div>
+</section>

@@ -1,0 +1,115 @@
+---
+import { css } from "../../styled-system/css";
+import Eyebrow from "./Eyebrow.astro";
+
+interface Props {
+  kicker: string;
+  title: string;
+  titleEm?: string;
+  body: string;
+  points: string[];
+  reverse?: boolean;
+}
+const { kicker, title, titleEm, body, points, reverse } = Astro.props;
+
+const wrap = css({
+  maxW: "1640px",
+  mx: "auto",
+  px: { base: "6", md: "16" },
+  py: { base: "14", md: "20" },
+  display: "grid",
+  gridTemplateColumns: { base: "1fr", lg: "1fr 1.15fr" },
+  gap: { base: "10", lg: "16" },
+  alignItems: "center",
+  overflowX: "hidden",
+});
+const wrapReverse = css({
+  lg: { direction: "rtl" },
+});
+const textCol = css({ direction: "ltr" });
+const h2 = css({
+  mt: "3",
+  fontFamily: "heading",
+  fontWeight: "600",
+  fontSize: { base: "32px", md: "44px" },
+  lineHeight: "1.1",
+  letterSpacing: "tight",
+  color: "fg",
+});
+const em = css({
+  fontStyle: "italic",
+  color: "accent",
+});
+const bodyCls = css({
+  mt: "4",
+  fontSize: "md",
+  lineHeight: "1.6",
+  color: "fg.muted",
+  maxW: "460px",
+});
+const list = css({
+  mt: "5",
+  display: "flex",
+  flexDirection: "column",
+  gap: "2.5",
+  listStyleType: "none",
+  padding: 0,
+});
+const listItem = css({
+  display: "flex",
+  gap: "2.5",
+  fontSize: "sm",
+  color: "fg.muted",
+  lineHeight: "1.5",
+  alignItems: "flex-start",
+});
+const dash = css({
+  color: "accent",
+  fontWeight: "700",
+  flexShrink: 0,
+});
+const previewBox = css({
+  direction: "ltr",
+  minW: "0",
+  overflowX: "auto",
+  scrollbarWidth: "none",
+  "&::-webkit-scrollbar": { display: "none" },
+});
+const previewPlaceholder = css({
+  height: { base: "240px", md: "320px" },
+  bg: "bg.surface",
+  border: "1px dashed",
+  borderColor: "border",
+  rounded: "lg",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "fg.subtle",
+  fontFamily: "mono",
+  fontSize: "xs",
+});
+---
+
+<section class={`${wrap} ${reverse ? wrapReverse : ""}`}>
+  <div class={textCol}>
+    <Eyebrow>{kicker}</Eyebrow>
+    <h2 class={h2}>
+      {title}
+      {titleEm ? <> <em class={em}>{titleEm}</em></> : null}
+    </h2>
+    <p class={bodyCls}>{body}</p>
+    <ul class={list}>
+      {points.map((p) => (
+        <li class={listItem}>
+          <span class={dash}>—</span>
+          <span set:html={p} />
+        </li>
+      ))}
+    </ul>
+  </div>
+  <div class={previewBox}>
+    <slot>
+      <div class={previewPlaceholder}>preview · coming soon</div>
+    </slot>
+  </div>
+</section>

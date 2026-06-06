@@ -1,0 +1,123 @@
+---
+import { css } from "../../styled-system/css";
+import Nav from "./Nav.astro";
+import Pill from "./Pill.astro";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+
+const { lang = "en" } = Astro.props;
+
+const repoUrl = "https://github.com/httuicom/httui";
+
+const copy = {
+  en: {
+    pill: "open source — local-first · no telemetry",
+    headlineA: "Debug your APIs and databases in a",
+    headlineB: "single markdown file.",
+    sub: "httui is a markdown editor with executable blocks — HTTP requests and SQL (PostgreSQL, MySQL, SQLite). Each runbook is documentation and a troubleshooting tool, versioned in git.",
+    cta: "Get started",
+  },
+  "pt-br": {
+    pill: "código aberto — local-first · sem telemetria",
+    headlineA: "Debugue suas APIs e bancos em um",
+    headlineB: "único arquivo markdown.",
+    sub: "httui é um editor de markdown com blocos executáveis — requisições HTTP e SQL (PostgreSQL, MySQL, SQLite). Cada runbook é documentação e ferramenta de troubleshooting, versionado no git.",
+    cta: "Começar",
+  },
+  es: {
+    pill: "código abierto — local-first · sin telemetría",
+    headlineA: "Depura tus APIs y bases de datos en un",
+    headlineB: "único archivo markdown.",
+    sub: "httui es un editor markdown con bloques ejecutables — peticiones HTTP y SQL (PostgreSQL, MySQL, SQLite). Cada runbook es documentación y herramienta de troubleshooting, versionado en git.",
+    cta: "Empezar",
+  },
+};
+const t = copy[lang];
+
+const section = css({ position: "relative", bg: "bg" });
+const container = css({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  textAlign: "center",
+  maxW: "1080px",
+  mx: "auto",
+  px: { base: "5", md: "14" },
+  pt: { base: "8", md: "16" },
+  pb: { base: "8", md: "12" },
+});
+const badge = css({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "1.5",
+  px: "3",
+  py: "1",
+  rounded: "full",
+  fontSize: "11px",
+  bg: "color-mix(in oklch, var(--colors-bg) 80%, transparent)",
+  border: "1px solid",
+  borderColor: "border.subtle",
+  color: "fg.muted",
+  mb: { base: "5", md: "7" },
+  backdropFilter: "blur(8px)",
+  whiteSpace: "nowrap",
+  fontFamily: "mono",
+});
+const dot = css({
+  w: "6px",
+  h: "6px",
+  rounded: "full",
+  bg: "ok",
+  flexShrink: 0,
+});
+const h1 = css({
+  fontFamily: "heading",
+  fontWeight: "600",
+  fontSize: { base: "34px", sm: "40px", md: "64px", lg: "88px", xl: "96px" },
+  lineHeight: { base: "1.06", lg: "1.02" },
+  letterSpacing: "tighter",
+  color: "fg",
+  textWrap: "balance",
+});
+const em = css({ fontStyle: "italic" });
+const subP = css({
+  mt: { base: "5", md: "7" },
+  maxW: "620px",
+  fontFamily: "heading",
+  fontSize: { base: "15px", md: "18px" },
+  lineHeight: "1.55",
+  color: "fg",
+});
+const ctaRow = css({
+  display: "flex",
+  gap: "3",
+  mt: { base: "7", md: "9" },
+  mb: { base: "10", md: "14" },
+  flexWrap: "wrap",
+  justifyContent: "center",
+});
+---
+
+<section class={section}>
+  <Nav lang={lang} />
+  <div class={container}>
+    <span class={badge}>
+      <span class={dot}></span>
+      {t.pill}
+    </span>
+
+    <h1 class={h1}>
+      {t.headlineA} <em class={em}>{t.headlineB}</em>
+    </h1>
+
+    <p class={subP}>{t.sub}</p>
+
+    <div class={ctaRow}>
+      <Pill variant="solid" href={repoUrl}>
+        {t.cta} <span aria-hidden="true">→</span>
+      </Pill>
+    </div>
+  </div>
+</section>

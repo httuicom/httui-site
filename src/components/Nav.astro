@@ -1,0 +1,94 @@
+---
+import { css } from "../../styled-system/css";
+import Logo from "./Logo.astro";
+import Pill from "./Pill.astro";
+import { ThemeToggle } from "./ThemeToggle";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+
+const { lang = "en" } = Astro.props;
+
+const repoUrl = "https://github.com/httuicom/httui";
+
+const labels = {
+  en: { install: "Install", docs: "Docs", changelog: "Changelog", github: "GitHub", cta: "View on GitHub" },
+  "pt-br": { install: "Instalar", docs: "Docs", changelog: "Novidades", github: "GitHub", cta: "Ver no GitHub" },
+  es: { install: "Instalar", docs: "Docs", changelog: "Cambios", github: "GitHub", cta: "Ver en GitHub" },
+};
+const t = labels[lang];
+
+const docsHref = lang === "en" ? "/docs/getting-started" : `/${lang}/docs/getting-started`;
+
+const links = [
+  { t: t.install, href: "#install" },
+  { t: t.docs, href: docsHref },
+  { t: t.changelog, href: `${repoUrl}/blob/main/CHANGELOG.md` },
+  { t: t.github, href: repoUrl },
+];
+
+const wrap = css({
+  position: "sticky",
+  top: 0,
+  zIndex: 50,
+  bg: "bg",
+  borderBottom: "1px solid",
+  borderColor: "border.subtle",
+});
+const inner = css({
+  display: "flex",
+  alignItems: "center",
+  maxW: "1280px",
+  mx: "auto",
+  width: "100%",
+  px: { base: "5", md: "8" },
+  py: "3",
+  fontSize: "sm",
+});
+const center = css({
+  flex: 1,
+  display: { base: "none", md: "flex" },
+  justifyContent: "center",
+  gap: "1",
+});
+const link = css({
+  px: "3",
+  py: "1.5",
+  fontSize: "13px",
+  fontWeight: "500",
+  color: "fg.muted",
+  rounded: "md",
+  cursor: "pointer",
+  textDecoration: "none",
+  _hover: { color: "fg" },
+});
+const right = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "3",
+});
+---
+
+<nav class={wrap}>
+  <div class={inner}>
+    <Logo variant="full" size={22} />
+    <div class={center}>
+      {links.map((l) => (
+        <a
+          href={l.href}
+          class={link}
+          {...(l.href.startsWith("#") || l.href.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer" })}
+        >
+          {l.t}
+        </a>
+      ))}
+    </div>
+    <div class={right}>
+      <ThemeToggle client:idle />
+      <Pill variant="ink" size="sm" href={repoUrl}>
+        {t.cta} <span aria-hidden="true">→</span>
+      </Pill>
+    </div>
+  </div>
+</nav>

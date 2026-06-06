@@ -1,0 +1,229 @@
+---
+import { css } from "../../styled-system/css";
+import Eyebrow from "./Eyebrow.astro";
+
+interface Props {
+  lang?: "en" | "pt-br" | "es";
+}
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    kicker: "Install",
+    title: "Free forever.",
+    titleEm: "Yours",
+    titleAfter: "to fork.",
+    sub: "One line. No signup, no card, no telemetry.",
+    distros: [
+      { label: "Homebrew", icon: "", lines: ["brew tap httuicom/httui", "brew install --cask httui"] },
+      { label: "GitHub Releases", icon: "▣", lines: [".dmg · .msi · .exe", ".deb · .rpm · .AppImage"] },
+      { label: "From source", icon: "{ }", lines: ["make install-deps", "cargo tauri build"] },
+    ],
+    foot: 'GUI builds for <span class="mono">macOS</span> · <span class="mono">Linux</span> · <span class="mono">Windows</span> on <span class="emph">GitHub releases</span>. The macOS build is unsigned — the install script and Homebrew cask clear the Gatekeeper quarantine; in-app auto-update keeps it current.',
+    terminalUser: "~/projects · zsh",
+    terminalLines: [
+      { cmd: true, txt: "curl -fsSL https://httui.com/install.sh | sh" },
+      { cmd: false, txt: "✓ downloading the latest release…" },
+      { cmd: false, txt: "✓ installed httui → /Applications/httui.app" },
+      { cmd: true, txt: "open /Applications/httui.app" },
+    ],
+  },
+  "pt-br": {
+    kicker: "Instalar",
+    title: "De graça pra sempre.",
+    titleEm: "Seu",
+    titleAfter: "pra fazer fork.",
+    sub: "Uma linha. Sem cadastro, sem cartão, sem telemetria.",
+    distros: [
+      { label: "Homebrew", icon: "", lines: ["brew tap httuicom/httui", "brew install --cask httui"] },
+      { label: "GitHub Releases", icon: "▣", lines: [".dmg · .msi · .exe", ".deb · .rpm · .AppImage"] },
+      { label: "Pelo código", icon: "{ }", lines: ["make install-deps", "cargo tauri build"] },
+    ],
+    foot: 'Builds GUI pra <span class="mono">macOS</span> · <span class="mono">Linux</span> · <span class="mono">Windows</span> em <span class="emph">GitHub releases</span>. O build de macOS não é assinado — o script de install e o cask do Homebrew limpam a quarentena do Gatekeeper; o auto-update interno mantém atualizado.',
+    terminalUser: "~/projects · zsh",
+    terminalLines: [
+      { cmd: true, txt: "curl -fsSL https://httui.com/install.sh | sh" },
+      { cmd: false, txt: "✓ baixando a última release…" },
+      { cmd: false, txt: "✓ httui instalado → /Applications/httui.app" },
+      { cmd: true, txt: "open /Applications/httui.app" },
+    ],
+  },
+  es: {
+    kicker: "Instalar",
+    title: "Gratis para siempre.",
+    titleEm: "Tuyo",
+    titleAfter: "para hacer fork.",
+    sub: "Una línea. Sin registro, sin tarjeta, sin telemetría.",
+    distros: [
+      { label: "Homebrew", icon: "", lines: ["brew tap httuicom/httui", "brew install --cask httui"] },
+      { label: "GitHub Releases", icon: "▣", lines: [".dmg · .msi · .exe", ".deb · .rpm · .AppImage"] },
+      { label: "Desde el código", icon: "{ }", lines: ["make install-deps", "cargo tauri build"] },
+    ],
+    foot: 'Builds GUI para <span class="mono">macOS</span> · <span class="mono">Linux</span> · <span class="mono">Windows</span> en <span class="emph">GitHub releases</span>. El build de macOS no está firmado — el script de install y el cask de Homebrew limpian la cuarentena de Gatekeeper; el auto-update interno lo mantiene actualizado.',
+    terminalUser: "~/projects · zsh",
+    terminalLines: [
+      { cmd: true, txt: "curl -fsSL https://httui.com/install.sh | sh" },
+      { cmd: false, txt: "✓ descargando la última release…" },
+      { cmd: false, txt: "✓ httui instalado → /Applications/httui.app" },
+      { cmd: true, txt: "open /Applications/httui.app" },
+    ],
+  },
+};
+const t = copy[lang];
+
+const section = css({
+  px: { base: "6", md: "20" },
+  py: { base: "16", md: "24" },
+  bg: "bg.surface",
+  borderTop: "1px solid",
+  borderBottom: "1px solid",
+  borderColor: "border",
+});
+const header = css({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "3.5",
+  mb: "10",
+  textAlign: "center",
+});
+const h2 = css({
+  fontFamily: "heading",
+  fontWeight: "600",
+  fontSize: { base: "36px", md: "52px" },
+  lineHeight: "1.1",
+  letterSpacing: "tight",
+  color: "fg",
+});
+const em = css({ fontStyle: "italic", color: "accent" });
+const sub = css({
+  fontFamily: "heading",
+  fontSize: "17px",
+  color: "fg.muted",
+  maxW: "580px",
+});
+const terminal = css({
+  maxW: "760px",
+  mx: "auto",
+  mb: "7",
+  rounded: "xl",
+  overflow: "hidden",
+  border: "1px solid",
+  borderColor: "stone.500",
+  bg: "stone.900",
+  color: "paper.100",
+  fontFamily: "mono",
+  boxShadow: "photo",
+});
+const termHead = css({
+  display: "flex",
+  alignItems: "center",
+  px: "3.5",
+  py: "2.5",
+  gap: "2",
+  borderBottom: "1px solid",
+  borderColor: "stone.500",
+});
+const termTitle = css({
+  flex: 1,
+  textAlign: "center",
+  fontSize: "11px",
+  color: "stone.200",
+});
+const termBody = css({
+  px: "5",
+  py: "5",
+  fontSize: "14px",
+  lineHeight: "1.8",
+});
+const cmdPrompt = css({ color: "moss.300" });
+const distroGrid = css({
+  maxW: "920px",
+  mx: "auto",
+  display: "grid",
+  gridTemplateColumns: { base: "1fr", md: "repeat(3, 1fr)" },
+  gap: "2.5",
+});
+const distroCard = css({
+  p: "3.5",
+  bg: "bg",
+  border: "1px solid",
+  borderColor: "border",
+  rounded: "md",
+});
+const distroHead = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+  mb: "2",
+  fontSize: "11px",
+  color: "fg.subtle",
+});
+const distroLabel = css({ fontWeight: "600", color: "fg.muted" });
+const distroLine = css({
+  fontFamily: "mono",
+  fontSize: "11.5px",
+  color: "fg",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+const foot = css({
+  textAlign: "center",
+  mt: "7",
+  fontSize: "xs",
+  color: "fg.muted",
+  maxW: "720px",
+  mx: "auto",
+  lineHeight: "1.7",
+});
+---
+
+<section id="install" class={section}>
+  <header class={header}>
+    <Eyebrow>{t.kicker}</Eyebrow>
+    <h2 class={h2}>
+      {t.title} <em class={em}>{t.titleEm}</em> {t.titleAfter}
+    </h2>
+    <p class={sub}>{t.sub}</p>
+  </header>
+
+  <div class={terminal}>
+    <div class={termHead}>
+      <span style="width:10px;height:10px;border-radius:9999px;background:#ed6a5e;"></span>
+      <span style="width:10px;height:10px;border-radius:9999px;background:#f4be4f;"></span>
+      <span style="width:10px;height:10px;border-radius:9999px;background:#62c554;"></span>
+      <span class={termTitle}>{t.terminalUser}</span>
+    </div>
+    <div class={termBody}>
+      {t.terminalLines.map((l) => (
+        <div>
+          {l.cmd ? <span class={cmdPrompt}>$</span> : null}
+          {l.cmd ? " " : ""}
+          {l.txt}
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div class={distroGrid}>
+    {t.distros.map((p) => (
+      <div class={distroCard}>
+        <div class={distroHead}>
+          <span style="font-family:var(--fonts-mono)">{p.icon}</span>
+          <span class={distroLabel}>{p.label}</span>
+        </div>
+        <div>
+          {p.lines.map((line) => <div class={distroLine}>{line}</div>)}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <p class={foot} set:html={t.foot} />
+</section>
+
+<style>
+  .mono { font-family: var(--fonts-mono); color: var(--colors-fg-muted); }
+  .emph { color: var(--colors-accent-emphasized); font-weight: 600; }
+</style>

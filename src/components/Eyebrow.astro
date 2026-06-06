@@ -1,0 +1,20 @@
+---
+import { css } from "../../styled-system/css";
+
+interface Props {
+  color?: string;
+}
+const { color = "accent" } = Astro.props;
+
+const cls = css({
+  fontFamily: "mono",
+  fontSize: "11px",
+  fontWeight: "700",
+  letterSpacing: "wider",
+  textTransform: "uppercase",
+});
+---
+
+<span class={cls} style={`color: var(--colors-${color.replace(".", "-")});`}>
+  <slot />
+</span>
