@@ -10,6 +10,6 @@ export const withBase = (path: string) =>
     : `${BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 
 export const docsHref = (lang: Lang) =>
-  withBase(lang === "en" ? "/docs/getting-started" : `/${lang}/docs/getting-started`);
+  withBase(lang === "en" ? "/docs/tutorials/quickstart" : `/${lang}/docs/tutorials/quickstart`);
 
 export { stats } from "./github-stats";
