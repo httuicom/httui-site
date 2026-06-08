@@ -1,0 +1,213 @@
+---
+title: CLI (httui-tui)
+description: Terminal binary for opening vaults, running runbooks from the shell, and CI integration.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`httui-tui` is the terminal companion to the desktop app — same
+runtime (executors, references, secrets), no GUI. Use it for SSH
+sessions, CI integration, or anywhere a browser engine is overkill.
+
+## Install
+
+The TUI binary ships in every release. After installing the desktop
+app, `httui-tui` is on your `PATH`:
+
+```bash
+httui-tui --version
+```
+
+If not on `PATH`, the binary is at:
+
+- macOS: `/Applications/httui.app/Contents/Resources/httui-tui`
+- Linux: alongside the AppImage extraction
+- Windows: in the install dir, `httui-tui.exe`
+
+## Open a vault interactively
+
+```bash
+httui-tui
+```
+
+Opens the last-active vault from your desktop install. On first run
+with no vault, shows the empty-state flow (Open / Clone / Create —
+same as the desktop).
+
+```bash
+httui-tui open ~/my-vault
+```
+
+Open a specific vault. Persists as last-active across sessions.
+
+## Run a runbook (one-shot)
+
+```bash
+httui-tui run runbooks/smoke-staging.md
+```
+
+Runs every block in the file top to bottom, prints results to
+stdout, exits `0` on all-pass / non-zero on any failure (CI-friendly).
+
+### `--env <name>`
+
+```bash
+httui-tui run runbooks/smoke.md --env staging
+```
+
+Pick the environment before running. Same effect as choosing in the
+TopBar selector.
+
+### `--block <alias>`
+
+```bash
+httui-tui run runbooks/smoke.md --block login --block me
+```
+
+Run only the named blocks (with their dependency chain). Useful for
+re-running one slow block while iterating.
+
+### `--no-cache`
+
+```bash
+httui-tui run runbooks/smoke.md --no-cache
+```
+
+Skip cache lookup; re-execute every block. Same as `Cmd+Shift+R` in
+the desktop.
+
+### `--format <fmt>`
+
+```bash
+httui-tui run runbooks/smoke.md --format json
+```
+
+Output format for results:
+
+| `--format` | Output |
+|---|---|
+| `pretty` (default) | Human-readable with colors |
+| `json` | One JSON object per block; final summary at end |
+| `junit` | JUnit XML, suitable for CI test reports |
+| `tap` | TAP v13 format |
+
+JSON example:
+
+```json
+{"block":"login","status":200,"time_ms":143,"passed":true}
+{"block":"me","status":200,"time_ms":89,"passed":true,"deps":["login"]}
+{"summary":{"total":2,"passed":2,"failed":0,"total_time_ms":234}}
+```
+
+## CI usage
+
+GitHub Actions example:
+
+```yaml
+- name: Smoke tests against staging
+  run: |
+    httui-tui run runbooks/smoke-*.md \\
+      --env staging \\
+      --format junit \\
+      > junit.xml
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+- name: Publish results
+  uses: actions/upload-artifact@v4
+  with:
+    name: smoke-results
+    path: junit.xml
+```
+
+**Secret handling in CI**: the keychain isn't available on CI
+runners. Set secrets via env vars; the keychain resolver falls
+back to env vars matching the key name:
+
+```yaml
+env:
+  PG_STAGING_PASSWORD: ${{ secrets.PG_STAGING_PASSWORD }}
+  PAYMENTS_API_TOKEN: ${{ secrets.PAYMENTS_API_TOKEN }}
+```
+
+## Interactive TUI
+
+Without `run`, you get the full interactive TUI — file tree, editor,
+block execution, all in the terminal. Keymap mostly mirrors the
+desktop (vim-friendly).
+
+### Keymap (interactive)
+
+| Key | Action |
+|---|---|
+| `Tab` / `Shift+Tab` | Move focus between panes |
+| `Enter` | Run block under cursor |
+| `Esc` | Cancel running block |
+| `g` then `s` | Open block settings modal |
+| `g` then `h` | Go to file tree |
+| `g` then `e` | Go to editor |
+| `g` then `c` | Go to chat |
+| `:` | Command palette |
+| `q` | Quit |
+
+The TUI avoids `Alt+<digit>` chords (collides with tmux/Aerospace).
+Use `g`-prefix or bare letters.
+
+### Command palette (`:`)
+
+```
+:run                Run block under cursor
+:run-all            Run every block in active file
+:env staging        Switch environment
+:open path/to.md    Open file
+:save               Save (autosave is on; rarely needed)
+:vault              Switch vault
+:quit / :q          Quit
+```
+
+Most commands are also keybindings; the palette is for occasional
+ones or discovery.
+
+## Empty-state on fresh machine
+
+`httui-tui` first-run on a machine without a vault drops you into
+the empty-state flow:
+
+```
+Welcome to httui
+  [n] New vault
+  [c] Clone vault from git
+  [o] Open existing folder
+  [q] Quit
+```
+
+Same backend as the desktop empty-state — vault is recognized by
+the same files (see [Vault layout](/docs/reference/vault-layout)).
+
+## Config
+
+TUI reads the same `user.toml` as the desktop. Theme, vim mode,
+keymap overrides — all shared. Override TUI-specific bits under a
+`[tui]` table:
+
+```toml
+[tui]
+theme = "tokyonight"             # palette name; defaults to "auto"
+font_powerline = false           # set true if your terminal renders powerline glyphs
+```
+
+## Useful flags
+
+```bash
+httui-tui --help                 # full help
+httui-tui --version              # version + git SHA
+httui-tui --vault <path>         # override active vault for this session only
+httui-tui --headless             # disable interactive UI (use with `run`)
+httui-tui --debug                # log to stderr
+```
+
+## Related
+
+- **[Keyboard shortcuts](/docs/reference/shortcuts)** — desktop keymap (mostly mirrored in TUI)
+- **[Assert response shape](/docs/how-to/assertions)** — `# expect:` syntax + CI patterns
+- **[Vault layout](/docs/reference/vault-layout)** — what `--vault <path>` points at

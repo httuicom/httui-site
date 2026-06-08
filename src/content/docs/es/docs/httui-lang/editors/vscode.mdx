@@ -1,0 +1,164 @@
+---
+title: VS Code
+description: Instala la extensión httui-lang en VS Code — syntax highlight, LSP, autocomplete, hover.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+La extensión **httui-lang** para VS Code bundlea highlight de
+tree-sitter + el servidor LSP en una sola instalación. Funciona en
+archivos `.httui` y en runbooks `.md` (solo regiones fenced).
+
+## Install
+
+### Desde el Marketplace
+
+<Steps>
+1. Abre VS Code.
+2. Panel de Extensions (`Cmd+Shift+X`).
+3. Busca **"httui"**.
+4. Instala **httui-lang** (publisher: `httuicom`).
+</Steps>
+
+O desde la línea de comandos:
+
+```bash
+code --install-extension httuicom.httui-lang
+```
+
+### Desde un `.vsix`
+
+Si quieres side-loadear un pre-release:
+
+1. Descarga `httui-lang-<version>.vsix` desde
+   [Releases](https://github.com/httuicom/httui-lang-vscode/releases).
+2. Panel de Extensions → menú ⋯ → **Install from VSIX**.
+
+## Qué obtienes
+
+- **Syntax highlight** para archivos `.httui` (vía gramática TextMate
+  + tree-sitter cuando el pipeline tree-sitter de VS Code lo habilita)
+- **LSP**: hover, completion, go-to-definition, diagnostics, rename
+- **Snippets**: `http`, `db`, `expect` → scaffolds expandibles
+- **Run code lens** arriba de cada bloque (si la desktop app de httui
+  también está corriendo — envía un mensaje a ella vía la extensión
+  `httui/blockRun`)
+
+## Configuración
+
+La extensión lee la config del vault automáticamente cuando abrís
+una carpeta que **parece un vault** (tiene `.httui/`, `runbooks/`,
+`connections.toml`, o `envs/`).
+
+O setea manualmente en `settings.json`:
+
+```json
+{
+  "httui.vault": "/Users/you/runbooks",
+  "httui.env": "staging",
+  "httui.lspPath": "auto",
+  "httui.runCodeLens": true,
+  "httui.diagnosticsLevel": "warning"
+}
+```
+
+| Setting | Default | Notas |
+|---|---|---|
+| `httui.vault` | `auto` | Path al vault activo; `auto` = current workspace folder si parece un vault |
+| `httui.env` | de `user.toml` | Env activo para hover/resolución |
+| `httui.lspPath` | `auto` | Path al binario `httui-lsp`; `auto` = bundled con la extensión |
+| `httui.runCodeLens` | `true` | Muestra el lens "Run" arriba de cada bloque (no-op si el desktop no está corriendo) |
+| `httui.diagnosticsLevel` | `warning` | `off`, `error`, `warning`, `info` |
+| `httui.format.onSave` | `false` | Auto-format on save |
+
+## Comandos
+
+`Cmd+Shift+P` luego busca:
+
+| Comando | Acción |
+|---|---|
+| `httui: Set active environment…` | Elige de `envs/*.toml` |
+| `httui: Run block under cursor` | Envía al desktop de httui si está corriendo |
+| `httui: Run all blocks in file` | Igual |
+| `httui: Show resolved value` | Pop-over con la resolución actual del `{{ref}}` bajo el cursor |
+| `httui: Open vault` | Folder picker para el vault path |
+| `httui: Restart LSP server` | Cuando el LSP se confunde, más rápido que recargar la ventana |
+
+## Keybindings
+
+Bindings default (sobreescribe en `keybindings.json`):
+
+| Acción | macOS | Linux/Windows |
+|---|---|---|
+| Run block under cursor | `Cmd+Shift+R` | `Ctrl+Shift+R` |
+| Show resolved value | `Cmd+K Cmd+R` | `Ctrl+K Ctrl+R` |
+| Go to alias definition | `F12` (go-to-def estándar) | `F12` |
+
+## Snippets
+
+Tipea el trigger y presiona `Tab`:
+
+| Trigger | Inserta |
+|---|---|
+| `http` | Scaffold de bloque HTTP |
+| `httpa` | Bloque HTTP con `alias=` |
+| `httpexpect` | Bloque HTTP + sección `# expect:` |
+| `db` | Scaffold de bloque DB |
+| `expect` | Solo una sección `# expect:` |
+
+## Integración con markdown
+
+Cuando abrís un archivo `.md` con fence blocks de httui, la
+extensión **inyecta** el comportamiento del lenguaje httui en las
+regiones fenced:
+
+- El body de la fence obtiene highlight de httui + LSP
+- Hover/completion/diagnostics funcionan dentro de la fence
+- Fuera de la fence, comportamiento normal de markdown
+
+Sin config especial — las reglas de injection shipean con la
+extensión.
+
+## Troubleshooting
+
+### El LSP no arranca
+
+Revisa el panel Output → canal "httui-lang". Lo más común:
+
+| Síntoma | Causa probable | Fix |
+|---|---|---|
+| "Couldn't find httui-lsp" | Binario bundled no extraído | Reinstala la extensión; o setea `httui.lspPath` a un binario instalado manualmente |
+| El LSP arranca luego sale | Error de config del vault | Abre `connections.toml` / `envs/*.toml` y revisa la sintaxis |
+| Sin completions | LSP arrancó pero el vault no fue detectado | Setea `httui.vault` explícitamente |
+
+### Highlight de tree-sitter no funciona
+
+El pipeline de tree-sitter de VS Code es opt-in para algunos
+usuarios. El fallback es TextMate (shipea con la extensión) —
+mismos colores, ligeramente menos preciso. Para forzar tree-sitter:
+
+```json
+{
+  "editor.experimental.useTreeSitter": true
+}
+```
+
+### LSP lento en vaults grandes
+
+Si tienes >100 runbooks, hover/completion puede laggear en el
+primer open. Solución:
+
+```json
+{
+  "httui.workspaceIndexing": "lazy"
+}
+```
+
+El modo lazy indexa un runbook solo cuando se abre, vs eager (todos
+en startup).
+
+## Relacionado
+
+- **[Capacidades del LSP](/es/docs/httui-lang/lsp)** — qué provee el server
+- **[Setup de Neovim](/es/docs/httui-lang/editors/neovim)** — mismo LSP, host diferente
+- **[Gramática tree-sitter](/es/docs/httui-lang/tree-sitter)** — qué da poder al highlight

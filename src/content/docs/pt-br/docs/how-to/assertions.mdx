@@ -1,0 +1,200 @@
+---
+title: Faça assert do formato e timing da response
+description: Transforme qualquer bloco num smoke test com uma seção `# expect:` — operadores, campos, comportamento em falha.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Uma seção `# expect:` transforma um bloco de "me mostra o que
+voltou" em "**falhe o runbook se qualquer um desses não for
+verdade**". Útil pra smoke tests commitados no git e rodados como
+step de CI, ou pro check local "será que staging derivou desde
+ontem?".
+
+## Sintaxe
+
+Dentro de qualquer bloco (HTTP ou DB), adicione uma seção começando
+com `# expect:` em uma linha própria. Cada linha embaixo é uma
+assertion: `<campo> <operador> <valor>`.
+
+````markdown
+```http
+GET {{BASE_URL}}/health
+
+# expect:
+#   status == 200
+#   time &lt; 500ms
+#   body.status == "ok"
+#   body.version matches /^v\\d+\\.\\d+\\.\\d+$/
+```
+````
+
+Tudo depois de `# expect:` até o fence de fechamento (ou uma linha
+em branco seguida de conteúdo não-#) é parseado como assertions.
+
+## Campos em que você pode dar assert
+
+Os mesmos campos das [referências entre blocos](/pt-br/docs/how-to/references),
+mais dois só-HTTP:
+
+| Campo | Notas |
+|---|---|
+| `status` | status HTTP numérico |
+| `time` | tempo total (em `ms` / `s`) |
+| `size` | bytes do body da response |
+| `body.<path>` | JSON path |
+| `headers.<name>` | header de response (case-insensitive) |
+| `cookies.<name>` | valor de set-cookie |
+| `affected` | só DB — contagem de linhas de INSERT/UPDATE/DELETE |
+| `row[N].<col>` | só DB — coluna da n-ésima linha de resultado |
+| `rows.length` | só DB — número de linhas retornadas |
+
+## Operadores
+
+| Operador | Significado | Funciona em |
+|---|---|---|
+| `==` | igualdade estrita | strings, numbers, booleans, null |
+| `!=` | diferente | mesmo |
+| `<` `<=` `>` `>=` | comparação numérica | numbers (incl. `time`, `size`) |
+| `contains` | substring ou membership de array | strings, arrays |
+| `not contains` | inverso de contains | strings, arrays |
+| `matches` | match regex | strings (regex entre `/.../`) |
+| `exists` | path resolve (sem RHS) | qualquer campo |
+| `not exists` | inverso | qualquer campo |
+| `is` | check de tipo (`number`, `string`, `array`, `object`, `null`) | qualquer campo |
+
+## Unidades de tempo
+
+`time` e `size` aceitam sufixos:
+
+```
+time < 500ms
+time < 1.5s
+time < 1m
+size < 10kb
+size < 100mb
+```
+
+| Sufixo | Significado |
+|---|---|
+| `ms` | milissegundos |
+| `s` | segundos |
+| `m` | minutos (raro) |
+| `b` / `kb` / `mb` / `gb` | bytes (potências de 1024) |
+
+Sem sufixo significa integer puro (`time < 500` é `< 500ms` por
+default, já que `time` está em ms; `size < 100` é bytes).
+
+## Assertions cross-block com referências
+
+Referências funcionam dentro de `# expect:` como em qualquer outro
+lugar:
+
+````markdown
+```http alias=cutoff
+GET {{BASE_URL}}/last-sync
+```
+
+```http
+GET {{BASE_URL}}/changes
+
+# expect:
+#   status == 200
+#   body.since == {{cutoff.body.timestamp}}
+#   body.changes.length &gt; 0
+```
+````
+
+Útil pra checks "a API concordou com o que pegamos da última vez?".
+
+## Comportamento em falha
+
+Quando qualquer assertion falha:
+
+1. A toolbar do bloco fica **vermelha**.
+2. O painel de resultado mostra **expected vs actual** lado a lado:
+   ```
+   ✗ status == 200
+       expected: 200
+       actual:   503
+   ✓ time < 500ms (143ms)
+   ✗ body.status == "ok"
+       expected: "ok"
+       actual:   "degraded"
+   ```
+3. **Blocos downstream não rodam** num Run-all — o httui
+   curto-circuita na primeira falha.
+4. A contagem pass/fail da status bar atualiza: `2 passed · 1 failed`.
+
+## Run-all e CI
+
+Aperte **`Cmd+Shift+Enter`** (ou clique em **Run all** na status
+bar) pra rodar todo bloco de cima pra baixo. O sumário mostra
+total pass/fail entre todas as seções `# expect:`.
+
+Pra CI, o binário `httui-tui` pega o mesmo vault e consegue rodar
+runbooks específicos:
+
+```bash
+httui-tui run runbooks/smoke-staging.md --env staging
+# sai 0 se todos os expects passam, não-zero se algum falhou
+```
+
+Encadeie no seu step de CI como qualquer outro comando de teste.
+
+<Aside type="tip" title="Padrão smoke test">
+  Tenha um runbook por fluxo crítico: `runbooks/smoke-payments.md`,
+  `runbooks/smoke-auth.md`, etc. Cada um tem alguns blocos HTTP
+  com seções `# expect:`. `httui-tui run runbooks/smoke-*.md --env prod`
+  no CI te dá um snapshot passa-ou-falha de saúde em 5 segundos.
+</Aside>
+
+## Pular uma assertion temporariamente
+
+Comente com um `#` extra:
+
+```
+# expect:
+#   status == 200
+##   time < 500ms     ← pulado (instável em cache frio)
+#   body.status == "ok"
+```
+
+O `##` duplo é a convenção do httui pra "ignore essa linha de
+expect". Melhor que deletar porque a intenção fica preservada.
+
+## Múltiplas seções expect
+
+Você pode ter mais de uma — elas são agregadas:
+
+```http
+GET {{BASE_URL}}/users
+
+# expect:
+#   status == 200
+
+GET {{BASE_URL}}/users/admin
+
+# expect:
+#   status == 200
+#   body.role == "admin"
+```
+
+Cada `# expect:` aplica ao bloco mais recente. Útil quando o bloco
+tem sub-passos lógicos que você quer assertar separadamente.
+
+## Gotchas comuns
+
+| Sintoma | Causa | Correção |
+|---|---|---|
+| Check `body.X` exists falha em null | `exists` retorna false pra campos de body null | Use `body.X is null` pra distinguir |
+| Regex não matcha | Esqueceu de escapar `/` dentro do regex | `matches /^v\\d+\\/release$/` (escape `/` como `\\/`) |
+| Assertion de time sempre falha na primeira run | Conexão fria / lookup DNS | Primeira run baseline é mais lenta; considere `time < <p99-de-runs-típicas>` |
+| Mismatch de case em assertion de header | Headers HTTP são case-insensitive — o httui normaliza | `headers.content-type` e `headers.Content-Type` são iguais |
+
+## Relacionado
+
+- **[Monte um teste de API encadeado](/pt-br/docs/tutorials/chained-api)** —
+  veja `# expect:` num fluxo real.
+- **[Referencie valores entre blocos](/pt-br/docs/how-to/references)** —
+  use refs dentro de assertions pra checks cross-block.

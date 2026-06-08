@@ -1,0 +1,269 @@
+---
+title: Sintaxis
+description: La gramática formal de los bloques .httui — info-string de fence, secciones, modos de body, referencias.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Esta es la referencia del lenguaje para el formato de bloque `.httui`
+— lo que parsea httui-lang, lo que valida httui-lsp, lo que la
+gramática tree-sitter ilumina.
+
+## Shape de top-level
+
+Un archivo `.httui` es **una secuencia de bloques**, separados por
+líneas en blanco. Cada bloque abre con una **línea de fence**, luego
+tiene un **body**, opcionalmente seguido por una **sección de
+expect**.
+
+```
+<block> ::= <fence-line> NEWLINE
+            <body>
+            ( "# expect:" NEWLINE <expect-line>+ )?
+
+<fence-line> ::= ( "http" | "db-" CONN-NAME ) <info-token>*
+```
+
+Un runbook `.md` embebe la misma sintaxis dentro de bloques fenced
+de código:
+
+````markdown
+```http alias=login
+POST {{BASE_URL}}/auth/login
+```
+````
+
+La línea de apertura ` ```http ` juega el rol de `<fence-line>`. La
+línea de cierre ` ``` ` termina el body. Tree-sitter maneja ambos
+modos (`.httui` standalone y `.md` embebido).
+
+## Fence info-string
+
+Después de la palabra del lenguaje (`http` o `db-<conn>`), tokens
+adicionales configuran el bloque. Pares `key=value` separados por
+whitespace.
+
+```
+http alias=login timeout=5000 display=split mode=raw
+^^^^ ^^^^^^^^^^^ ^^^^^^^^^^^^ ^^^^^^^^^^^^^ ^^^^^^^^
+lang alias       timeout      display       mode
+```
+
+| Token | Tipo de valor | Default | Significado |
+|---|---|---|---|
+| `alias` | identifier | none | nombre del bloque (requerido para chain) |
+| `timeout` | int (ms) | `30000` HTTP / `60000` DB | timeout de la request |
+| `display` | `input \| output \| split` | `split` | layout del panel del editor |
+| `mode` | `raw \| form` | `raw` | modo del body editor (solo HTTP) |
+| `connection` | string | — | solo DB; alternativa a la fence `db-<name>` (raro) |
+
+**Orden canónico** para serialización: `alias → timeout → display
+→ mode`. El editor de httui reformatea a este orden al save.
+
+### Identifiers
+
+`<alias>` y `<connection-name>` siguen las reglas estándar de
+identifier:
+
+```
+ident ::= [a-zA-Z_] [a-zA-Z0-9_-]*
+```
+
+Letras, dígitos, underscores, hyphens. Sin espacios, sin puntos,
+sin `$`.
+
+## Body
+
+Lo que sigue a la línea de fence hasta la fence de cierre (o EOF en
+un archivo `.httui`).
+
+### HTTP body
+
+```
+HTTP-body ::= <request-line> NEWLINE
+              ( <header-line> NEWLINE )*
+              ( NEWLINE <message-body> )?
+```
+
+**Request line:**
+
+```
+GET https://api.example.com/users/{{id}}
+^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+verb URL (con interpolación de {{ref}})
+```
+
+El verb es uno de `GET | POST | PUT | PATCH | DELETE | HEAD |
+OPTIONS`. La URL es cualquier string, incluyendo expresiones
+`{{ref}}`, hasta el fin de línea.
+
+**Headers:** líneas estándar de header HTTP (`Name: value`). Una por
+línea. Los values pueden contener `{{ref}}`.
+
+**Body:** cualquier cosa después de la primera línea en blanco,
+hasta el cierre. El header `Content-Type` le dice al runtime cómo
+parsearlo; al lenguaje no le importa.
+
+### DB body
+
+```
+DB-body ::= <sql-statement> ( ";" <sql-statement> )*
+```
+
+SQL libre. Se permite multi-statement (separado por `;`). Los
+`{{ref}}` dentro de SQL son **convertidos a bind parameter** por el
+runtime — el lenguaje los parsea como expresiones de referencia,
+pero el executor nunca hace string-interpolación.
+
+## Secciones expect
+
+Después del body, una sección opcional `# expect:` convierte al
+bloque en una assertion.
+
+```
+<expect-section> ::= "# expect:" NEWLINE
+                     ( "#" <assertion> NEWLINE )+
+
+<assertion> ::= <field> <operator> <literal>
+              | <field> "exists"
+              | <field> "not" "exists"
+              | <field> "is" <type-name>
+```
+
+### Fields
+
+| Field | Fuente |
+|---|---|
+| `status` | HTTP status |
+| `time` | total elapsed (ms a menos que tenga suffix) |
+| `size` | bytes del response body |
+| `body.<path>` | JSON path al response body |
+| `headers.<name>` | response header (case-insensitive) |
+| `cookies.<name>` | valor set-cookie |
+| `affected` (DB) | filas afectadas |
+| `row[N].<col>` (DB) | columna de n-ésima fila |
+| `rows.length` (DB) | row count |
+
+### Operadores
+
+| Op | Significado |
+|---|---|
+| `==`, `!=` | igualdad / desigualdad estricta |
+| `<`, `<=`, `>`, `>=` | comparación numérica |
+| `contains`, `not contains` | membership de string / array |
+| `matches` | regex `/.../` |
+| `exists`, `not exists` | path resuelve |
+| `is` | check de tipo |
+
+### Sufijos de tiempo y tamaño
+
+```
+time < 500ms   time < 1.5s    time < 1m
+size < 10kb    size < 100mb
+```
+
+| Sufijo | Significa |
+|---|---|
+| `ms` `s` `m` | tiempo |
+| `b` `kb` `mb` `gb` | bytes (potencias de 1024) |
+
+## Expresiones de referencia
+
+La expresión `{{...}}` — completamente detallada en
+**[Referencias entre bloques](/es/docs/reference/block-references)**,
+resumen aquí.
+
+```
+<reference> ::= "{{" ( <alias-ref> | <env-ref> | <positional-ref> ) "}}"
+
+<alias-ref>      ::= IDENT "." <field> ( "." <path-segment> )*
+<env-ref>        ::= IDENT                          # sin puntos, busca env vars
+<positional-ref> ::= "$prev" ( "." <path-segment> )*
+
+<path-segment>   ::= IDENT | "[" INT "]" | "[" QUOTED-STRING "]"
+```
+
+Prioridad de resolución: **alias de bloque > env var**. Si ambos
+tienen el mismo nombre, el bloque gana.
+
+## Comentarios
+
+```
+# este es un comentario
+```
+
+Un `#` al inicio de una línea es un comentario, **excepto** dentro
+de la sección expect donde `#` introduce assertions. La gramática
+tree-sitter los distingue por contexto.
+
+Los comentarios inline (mid-line) no están soportados. Un `# foo`
+al final de una línea dentro de una URL se trata como parte de la
+URL.
+
+## Whitespace y líneas en blanco
+
+- El whitespace al final de las líneas se ignora.
+- Una línea en blanco dentro del body separa **headers del body** (HTTP).
+- Una línea en blanco entre bloques separa **bloques** (en archivos
+  `.httui`).
+- En runbooks `.md`, los delimitadores de fence sobreescriben las
+  reglas de blank-line (el body de una fence es todo hasta la fence
+  de cierre).
+
+## Keywords reservadas (en info de fence)
+
+Estas keys no pueden ser usadas como valor de `alias`:
+
+```
+alias  timeout  display  mode  connection
+```
+
+Otros identifiers son libres.
+
+## EBNF completo de la gramática
+
+Para implementadores de tree-sitter y parsers — la gramática
+completa:
+
+```ebnf
+file        ::= block ( BLANK-LINE+ block )*
+
+block       ::= fence-line NEWLINE body expect-section?
+
+fence-line  ::= ( "http" | "db-" ident ) info-token*
+info-token  ::= info-key "=" info-value
+info-key    ::= "alias" | "timeout" | "display" | "mode" | "connection"
+info-value  ::= ident | int | "raw" | "form" | "input" | "output" | "split"
+
+body        ::= http-body | db-body
+
+http-body   ::= request-line NEWLINE
+              ( header-line NEWLINE )*
+              ( BLANK-LINE message-body )?
+request-line::= verb SP url
+verb        ::= "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+
+db-body     ::= sql-statement ( ";" sql-statement )*
+
+expect-section ::= "# expect:" NEWLINE
+                 ( "#" SP assertion NEWLINE )+
+assertion   ::= field op literal
+              | field "exists"
+              | field "not" SP "exists"
+              | field "is" SP type-name
+
+reference   ::= "{{" ( alias-ref | env-ref | "$prev" path? ) "}}"
+alias-ref   ::= ident "." field-name path?
+env-ref     ::= ident
+path        ::= ( "." ident | "[" int "]" | "[" QUOTED "]" )+
+
+ident       ::= [a-zA-Z_] [a-zA-Z0-9_-]*
+```
+
+(Simplificado — el source de tree-sitter es la versión canónica.)
+
+## Relacionado
+
+- **[LSP](/es/docs/httui-lang/lsp)** — qué hace el server con esta gramática
+- **[Tree-sitter](/es/docs/httui-lang/tree-sitter)** — tipos de nodo + queries de highlight
+- **[Referencias entre bloques (completo)](/es/docs/reference/block-references)** — deep dive de `{{...}}`

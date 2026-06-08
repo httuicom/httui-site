@@ -1,5 +1,8 @@
 ---
 import FeatureRow from "./FeatureRow.astro";
+import BlocksPreview from "./previews/BlocksPreview.astro";
+import SchemaPreview from "./previews/SchemaPreview.astro";
+import GitDiffPreview from "./previews/GitDiffPreview.astro";
 
 interface Props {
   lang?: "en" | "pt-br" | "es";
@@ -116,6 +119,12 @@ const copy = {
 const t = copy[lang];
 ---
 
-<FeatureRow {...t.blocks} />
-<FeatureRow reverse {...t.schema} />
-<FeatureRow {...t.git} />
+<FeatureRow {...t.blocks}>
+  <BlocksPreview />
+</FeatureRow>
+<FeatureRow reverse {...t.schema}>
+  <SchemaPreview />
+</FeatureRow>
+<FeatureRow {...t.git}>
+  <GitDiffPreview />
+</FeatureRow>

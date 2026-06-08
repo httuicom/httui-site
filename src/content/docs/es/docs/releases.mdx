@@ -1,0 +1,162 @@
+---
+title: Releases
+description: Cómo una release tagueada de httui se construye, publica y distribuye — secrets, tags, firma, soak de RC, gestores de paquetes y auto-update.
+---
+
+Cómo una release tagueada de **httui** se construye, publica y
+distribuye. El pipeline es `.github/workflows/release.yml`,
+disparado al pushear un tag `v*`.
+
+> **Status:** httui es pre-stable (`0.x`); la primera release pública es
+> `v0.4.0`. Las builds de macOS y Windows son **sin firmar** (sin Apple
+> Developer ID / Authenticode — decisión 2026-05-17): macOS es ad-hoc
+> signed, Windows dispara SmartScreen. El env `APPLE_*` **no está
+> wireado** en `release.yml`; habilitar Developer ID signing después es
+> una *edición workflow deliberada* (re-agregar el env) más los secrets
+> — ver §5, no un switch solo de secrets. La notarización, la
+> publicación a Homebrew/winget y el soak de RC solo pueden verificarse
+> con certs reales, tokens, runs de CI y tiempo de wall-clock — son
+> **CI/cert-bound** y se validan post-tag.
+
+## 1. GitHub secrets requeridos
+
+| Secret | Propósito | Comportamiento si no está seteado |
+|---|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | clave minisign firmando los artefactos del updater (`latest.json` + `.sig`). La clave pública está pineada en `tauri.conf.json` → `plugins.updater.pubkey`. | Sin artefactos de updater; el auto-update in-app queda inerte. Los installers siguen shipeándose. |
+| `APPLE_CERTIFICATE` | Base64 del `.p12` Developer ID. **No referenciado por el workflow** — ver §5. | La build de macOS es **sin firmar**, ad-hoc signed (ver §5). |
+| `APPLE_CERTIFICATE_PASSWORD` | Contraseña del `.p12`. | — |
+| `APPLE_SIGNING_IDENTITY` | ej. `Developer ID Application: Name (TEAMID)`. | — |
+| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | Notarización (app-specific password). | Sin notarización. |
+| `HOMEBREW_TAP_TOKEN` | PAT con acceso de escritura a `httuicom/homebrew-httui`. | Se saltea el bump de Homebrew (la release igual triunfa). |
+| `WINGET_TOKEN` | PAT clásico que puede forkear `microsoft/winget-pkgs`. | Se saltea el submit a winget. |
+
+`GITHUB_TOKEN` se provee automáticamente.
+
+## 2. Convenciones de tags
+
+- Stable: `vMAJOR.MINOR.PATCH` — ej. `v0.4.0`.
+- Pre-release: agrega `-rc.N`, `-beta.N` o `-alpha.N`. La forma
+  canónica usa el punto (`v0.4.0-rc.1`); la forma sin punto
+  (`v0.4.0-rc1`) también la acepta el gate.
+- Un tag pre-release ⇒ la GitHub release queda flagueada como
+  **prerelease** y excluida del canal default de auto-update (los
+  usuarios opt-in bajo **Settings → General → Software updates →
+  Include pre-releases**).
+- El job `validate` **falla toda la release** si `CHANGELOG.md` no
+  tiene una sección `## [VERSION]`. Un pre-release cae a su sección de
+  versión base (`v0.4.0-rc.1` → `## [0.4.0]`). Las notas son curadas,
+  nunca auto-derivadas.
+
+## 3. Cortar una release
+
+1. Cura `CHANGELOG.md`: mueve el trabajo de `## [Unreleased]` a una
+   nueva sección `## [X.Y.Z] - YYYY-MM-DD`. Agrega la link ref
+   `[X.Y.Z]`.
+2. Committea en `main` (o en una rama de release).
+3. Taguea y pushea:
+   ```bash
+   git tag v0.4.1-rc.1
+   git push origin v0.4.1-rc.1
+   ```
+4. Mira **Actions → Release**. Jobs: `validate` → `release`
+   (macOS arm64, macOS x64, Linux, Windows en paralelo) →
+   `homebrew` + `winget` (stable only).
+5. Verifica la GitHub Release: `.dmg` ×2, `.app.tar.gz` + `.sig`,
+   `.msi`, `.exe`, `.deb`, `.rpm`, `.AppImage`, `latest.json`.
+
+## 4. Soak de RC (recomendado)
+
+Para una release significativa, shipea uno o más tags `-rc` primero y
+déjalos soakear antes de cortar el stable `vX.Y.0`:
+
+- Un soak de ~1 semana por RC sin bug release-blocking es el bar
+  recomendado para una feature release.
+- Pre-stable `0.x` y patch releases aisladas (`vX.Y.Z`, Z&gt;0) pueden
+  shipear directo cuando el cambio es chico y bien testeado — `v0.4.0`
+  en sí shipeó después de un RC pass del mismo día.
+
+Cuando hagas soak, registra cada RC y su ventana en las release notes.
+
+## 5. macOS — build sin firmar y Gatekeeper
+
+El `.dmg` **no** está notarizado, así que Gatekeeper bloquea un `.app`
+descargado manualmente en la primera apertura. Los dos paths de
+instalación soportados limpian esto automáticamente — **el script de
+instalación (`https://httui.com/install.sh`) y el cask de Homebrew
+ambos strippean el atributo de quarantine en el install**, así que los
+usuarios que pasan por ahí nunca ven un prompt. Solo un `.dmg`
+descargado a mano necesita un workaround:
+
+- **Right-click → Open**, luego confirma el diálogo; o
+- Limpia el atributo de quarantine:
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/httui.app
+  ```
+
+La firma de macOS está **deliberadamente sin wirear** en v1: el env
+`APPLE_*` está enteramente ausente de `release.yml`. Los secrets y
+variables de org/repo solo llegan a un workflow a través de una
+expresión `${{ }}`, así que sin expresión que los referencie, un
+**`APPLE_CERTIFICATE` a nivel de org** que persista o esté roto (que
+antes hacía fallar todo job de macOS en `security import`) físicamente
+no puede llegar a la build. La build se firma ad-hoc y shipea sin
+firmar.
+
+Cuando se adquiera un Apple Developer ID ($99/año): re-agrega las seis
+entradas `APPLE_*` del env bajo el step `Build and release` (una
+edición workflow deliberada) y setea los secrets correspondientes.
+`Entitlements.plist` (hardened runtime) ya está referenciado desde
+`tauri.conf.json`. Re-taguea — el mismo workflow firma y notariza;
+Gatekeeper acepta la build sin pasos del usuario.
+
+## 6. Windows
+
+`.msi` y `.exe` (NSIS) shipean **sin firmar** — SmartScreen warnea en
+el primer run; los usuarios hacen clic en **More info → Run anyway**.
+Un cert Authenticode es opcional y está fuera de scope por ahora.
+
+## 7. Linux
+
+```bash
+sudo dpkg -i httui_0.4.0_amd64.deb        # Debian/Ubuntu
+sudo rpm -i  httui-0.4.0-1.x86_64.rpm     # Fedora/RHEL
+chmod +x httui_0.4.0_amd64.AppImage && ./httui_0.4.0_amd64.AppImage
+```
+
+## 8. Homebrew
+
+Prerequisito: el repo del tap **`httuicom/homebrew-httui`** debe
+existir y `HOMEBREW_TAP_TOKEN` debe estar seteado. En cada stable
+release el job `homebrew` regenera `Casks/httui.rb` (sha256 de dmg arm
++ intel) y lo pushea. Los usuarios:
+
+```bash
+brew tap httuicom/httui
+brew install --cask httui
+brew upgrade --cask httui
+```
+
+## 9. winget
+
+El job `winget` somete un PR a `microsoft/winget-pkgs` vía
+`winget-releaser` (necesita `WINGET_TOKEN`). El **primer** manifest es
+revisado/mergeado manualmente por Microsoft; las versiones siguientes
+son automatizadas. Tras el merge: `winget install httui.notes`.
+
+## 10. Auto-update
+
+`useAutoUpdate` llama al plugin del updater contra
+`releases/latest/download/latest.json` (el "latest" de GitHub excluye
+prereleases del lado del servidor). Un segundo gate del lado del cliente
+(`shouldOfferUpdate`) esconde versiones pre-release a menos que el
+usuario haya hecho opt-in. Requiere `TAURI_SIGNING_PRIVATE_KEY` para
+que los artefactos estén firmados y `tauri.conf.json` →
+`bundle.createUpdaterArtifacts` esté en `true` (ya seteado).
+
+## 11. Rollback
+
+Una release mala: borra la GitHub Release **y** su tag. El updater lee
+el `latest.json` de la release **stable** más nueva, así que remover la
+release mala revierte a los clientes en su próximo check. Nunca hagas
+force-push sobre un tag publicado — corta un nuevo tag de patch en
+su lugar.

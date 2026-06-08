@@ -1,0 +1,204 @@
+---
+title: Adicione um banco de dados no seu runbook
+description: Conecte SQLite, crie uma tabela, faça query nas linhas e encadeie um resultado SQL numa request HTTP — sem precisar de serviço externo.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Esse tutorial te guia conectando seu primeiro banco no httui e
+misturando blocos SQL com blocos HTTP no mesmo runbook — o fluxo
+que transforma "verifica se staging bate com o DB" numa tarefa de
+30 segundos em vez de três ferramentas e um shell.
+
+Vamos usar **SQLite** pra você não precisar instalar Postgres nem
+rodar docker — o httui cria o arquivo `.sqlite` na primeira run.
+
+**Tempo:** ~15 minutos · **Pré-requisitos:** terminou o
+[Quickstart](/pt-br/docs/tutorials/quickstart).
+
+## 1. Adicione a conexão
+
+No sidebar, clique no **ícone de banco** (Connections). No painel
+da direita:
+
+<Steps>
+1. Clique em **+ Add connection**.
+2. Escolha **SQLite** no dropdown **Type**.
+3. **Name:** `local` — curtinho, isso vira parte do nome do fence
+   do bloco.
+4. **Path:** `./scratch.sqlite` (relativo à raiz do seu vault).
+5. Clique em **Save**.
+</Steps>
+
+Isso escreve um bloco no `connections.toml`:
+
+```toml
+[connections.local]
+type = "sqlite"
+path = "./scratch.sqlite"
+```
+
+<Aside title="Por que um arquivo de config, não um banco na UI?">
+  Tudo que é portável sobre seu vault vive em texto puro — runbooks
+  `.md`, `connections.toml`, `envs/*.toml`. Push pro git, clone em
+  outra máquina, mesmo vault funciona. Secrets e overrides por
+  máquina ficam fora do git de propósito.
+</Aside>
+
+## 2. Crie uma tabela (bloco DB — mutação)
+
+Crie `runbooks/users-check.md`. Adicione um título curto e intro:
+
+````markdown
+# Sanity check de users
+
+SQLite local pra imitar a tabela de users que vamos consultar em
+staging.
+````
+
+Depois adicione um **bloco DB** (o fence é `db-<connection-name>`):
+
+````markdown
+```db-local
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+);
+
+INSERT INTO users (name, email)
+VALUES
+  ('Alice',   'alice@example.com'),
+  ('Bob',     'bob@example.com'),
+  ('Charlie', 'charlie@example.com')
+ON CONFLICT DO NOTHING;
+```
+````
+
+O fence é `db-local` — isso é `db-` + o nome da conexão do passo 1.
+Cada conexão auto-registra seu próprio tipo de bloco.
+
+Aperte **`Cmd+Enter`** no bloco. **Você vai ver um banner primeiro:**
+
+> ⚠ Esse bloco contém `INSERT`. Rodar mesmo assim?
+
+Esse é o **mutation guard** — o scanner SQL do httui flagueou uma
+statement destrutiva e tá perguntando antes de deixar você
+reescrever produção sem querer. Clique em **Run once**. O bloco
+roda e você vê "3 rows affected".
+
+<Aside type="caution" title="O mutation guard é estrutural">
+  Não é um regex na primeira palavra — o httui faz parse do SQL
+  com um scanner. Então `UPDATE` dentro de um comentário não é
+  flagueado, mas um `DELETE` legítimo enterrado depois de um
+  `SELECT` é. Você pode desabilitar por bloco pela toolbar
+  (engrenagem → "Skip mutation prompt") se você confia no runbook.
+</Aside>
+
+## 3. Faça query de volta (bloco DB — SELECT)
+
+Adicione um bloco SELECT:
+
+````markdown
+```db-local alias=users_list
+SELECT id, name, email, created_at
+FROM users
+ORDER BY id
+```
+````
+
+Aperte `Cmd+Enter`. A response é uma **grid virtualizada** — colunas
+ordenáveis, badge de tipo por coluna, botão copy-as-CSV. Teste o
+sort no header da coluna e repare que é instantâneo mesmo em 100k
+linhas (a grid é janelada).
+
+O `alias=users_list` importa pro próximo passo.
+
+## 4. Encadeie SQL → HTTP
+
+Agora a mágica: use uma linha SQL como input pra um bloco HTTP.
+Adicione:
+
+````markdown
+```http alias=user_detail
+GET https://httpbin.org/anything/users/{{users_list.row[0].id}}
+Accept: application/json
+
+# expect:
+#   status == 200
+#   body.url contains "/users/1"
+```
+````
+
+O que `{{users_list.row[0].id}}` faz:
+
+| Parte | Significa |
+|---|---|
+| `users_list` | o alias do bloco SQL acima |
+| `row[0]` | primeira linha do result set |
+| `.id` | coluna `id` daquela linha |
+
+Aperte **`Cmd+Enter`** em `user_detail`. O httui:
+
+1. Vê a referência → roda `users_list` primeiro (já cacheado → instantâneo).
+2. Substitui `1` por `{{users_list.row[0].id}}` → a URL vira
+   `.../users/1`.
+3. Manda a request e faz assert da response.
+
+Você acabou de encadear uma query SQL numa request HTTP real. O
+mesmo pattern funciona ao contrário — use um valor de response
+HTTP como parâmetro SQL:
+
+````markdown
+```db-local
+SELECT * FROM users WHERE id = {{user_detail.body.json.id}}
+```
+````
+
+<Aside type="tip" title="Refs em SQL são sempre bound, nunca interpoladas">
+  Quando você usa `{{...}}` num bloco SQL, o httui converte a
+  referência em **bind parameter** (`$1` pra Postgres, `?` pra
+  SQLite/MySQL) — nunca string-interpolated. Zero superfície de
+  SQL injection, mesmo com valores controlados pelo usuário vindo
+  de responses HTTP.
+</Aside>
+
+## 5. EXPLAIN ANALYZE (o bônus)
+
+Adicione mais um bloco:
+
+````markdown
+```db-local
+EXPLAIN QUERY PLAN
+SELECT * FROM users WHERE id = 1
+```
+````
+
+Aperte `Cmd+Enter`. SQLite retorna o plano; pra **Postgres / MySQL**
+o mesmo bloco nesses drivers renderiza o EXPLAIN ANALYZE como
+**tree view** com scans sequenciais lentos destacados em vermelho.
+Botão-direito em qualquer nó pra "Copy as TEXT".
+
+## Acabou
+
+Seu runbook agora tem o loop:
+
+```mermaid
+graph LR
+  A[users_list - SQL] -- row[0].id --> B[user_detail - HTTP]
+  B -- assert --> C[passa/falha]
+```
+
+Commite. Abra o mesmo vault amanhã, aperte **Run all** e você vai
+saber em 500ms se o DB e a API ainda concordam.
+
+## E agora
+
+- **[Referências entre blocos — sintaxe completa](/pt-br/docs/reference/block-references)** —
+  `{{$prev}}`, `{{headers.X}}`, JSON paths, escopo
+- **[Conceitos → conexões + secrets](/pt-br/docs/how-to/environments)** —
+  troque `local` por um Postgres de verdade com senha no keychain
+  do SO
+- **[Arquitetura](/pt-br/docs/architecture)** — como a safety SQL +
+  resolução de cadeia funcionam por baixo dos panos

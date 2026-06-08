@@ -1,0 +1,170 @@
+---
+title: Bloque HTTP
+description: Referencia completa para el bloque fenced http — tokens de info-string, modos de body, métodos, generación de código.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+El bloque HTTP es un bloque de código fenced de markdown con el
+lenguaje `http`. El body es texto HTTP-message plano: una request
+line, headers, línea en blanco, body.
+
+## Ejemplo mínimo
+
+````markdown
+```http
+GET https://api.example.com/users
+```
+````
+
+Eso solo ejecuta. Agrega headers y body según necesites.
+
+## Anatomía completa
+
+````markdown
+```http alias=fetch-user timeout=10000 display=split mode=raw
+GET https://api.example.com/users?page=1
+Authorization: Bearer {{TOKEN}}
+Accept: application/json
+X-Request-Id: {{uuid}}
+
+# (el request body iría acá, después de una línea en blanco)
+```
+````
+
+## Tokens del info-string
+
+Todo después de `http` en la línea de la fence es **info string** —
+flags que configuran el bloque. El orden es `alias → timeout →
+display → mode` (orden canónico de write; httui reformatea a esto).
+
+| Token | Default | Notas |
+|---|---|---|
+| `alias=<name>` | none | Requerido para capture/chain. `<name>` sigue las reglas de identifier (letras, dígitos, `_`, `-`). |
+| `timeout=<ms>` | `30000` | Timeout de la request en milisegundos. Incluye connect + body. |
+| `display=<mode>` | `split` | Layout del panel: `input`, `output`, o `split`. |
+| `mode=<mode>` | `raw` | Modo del body editor: `raw` (texto HTTP-message) o `form` (tabular params/headers/body). |
+
+## Métodos soportados
+
+`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`.
+
+El método es la **primera palabra de la primera línea del body**. El
+method picker de la toolbar colorea esa palabra según el verbo, así
+el verbo siempre se ve de un vistazo.
+
+## Body
+
+Después de una línea en blanco que separa headers del body, puedes
+poner cualquier texto. httui lo envía as-is — tu header `Content-Type`
+le dice al server cómo parsearlo.
+
+Para form mode, cambia vía el toggle `[raw│form]` en la toolbar — la
+línea del body pasa a ser un editor tabular **Params / Headers /
+Body**. La fence serializada queda en formato HTTP-message canónico
+sin importar en qué modo creaste el bloque.
+
+## Streaming
+
+httui streamea la respuesta — el panel de respuesta actualiza los
+headers el instante en el que llegan (`ttfb` aparece), luego los body
+chunks se acumulan en el tab **Body**. Para respuestas de varios MB
+el panel se mantiene responsivo (sin hang del client-side).
+
+**Cancel mid-stream**: `Cmd+.` (o haz clic en el botón **Stop** de la
+toolbar). El `tokio::select` del backend observa la señal de cancel
+en cada chunk boundary, así que incluso cancelar mid-body funciona
+(devuelve `[cancelled]`, los bytes parciales se descartan).
+
+## Cap de tamaño de body
+
+`MAX_BODY_BYTES = 100 MB`. Arriba de esto, el executor hace
+short-circuit con `[body_too_large]` para defender contra OOM en
+descargas accidentales. Usa la acción **Send-as cURL** para descargas
+grandes donde querrías pipear a `>`.
+
+## Tabs del response panel
+
+| Tab | Contenido |
+|---|---|
+| **Body** | Pretty-printed por content type — JSON, XML, HTML, SVG vía el viewer de CodeMirror; binario como base64 + size; imágenes inline |
+| **Headers** | Response headers, sorted, sticky-search |
+| **Cookies** | Valores `Set-Cookie` parseados con atributos |
+| **Timing** | `total`, `ttfb`, más `dns`, `connect`, `tls`, `connection_reused` (cuando estén disponibles) |
+| **Raw** | Texto completo del wire — referencias ya resueltas y sustituidas |
+
+## Referencias en bloques HTTP
+
+`{{...}}` resuelve en:
+
+- URL (path + query)
+- Header keys
+- Header values
+- Body (cualquier content type)
+
+No en tokens de info-string. Ve
+**[Referencia valores entre bloques](/es/docs/how-to/references)**.
+
+## Teclado
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+Enter` | Ejecutar bloque (cursor en cualquier parte del body) |
+| `Cmd+.` | Cancelar bloque en ejecución |
+| `Cmd+Shift+C` | Copiar como cURL |
+
+## Generación de código (Send-as)
+
+El menú `⤓` de la status-bar exporta el bloque actual como:
+
+- **cURL** — atajo `Cmd+Shift+C`
+- **fetch** — browser/Node
+- **Python `requests`**
+- **HTTPie**
+- **Plain `.http` file** — formato REST Client / IntelliJ
+
+Las referencias resuelven a sus **valores cacheados actuales** en el
+export, así que `{{BASE_URL}}` pasa a ser la URL literal en el
+snippet.
+
+El clipboard write ocurre sincrónicamente dentro del click handler —
+sin `await` entre el click y el write — así la user-gesture window
+del browser queda abierta. (No vas a ver un "permission denied" que
+falle en silencio.)
+
+## Cache
+
+Los resultados de los bloques cachean por SHA-256 de:
+
+```
+method + URL con params sorteados-y-encoded + headers sorteados + body
+  + env snapshot (solo las env vars realmente referenciadas)
+```
+
+Los métodos de mutación (`POST`, `PUT`, `PATCH`, `DELETE`) **nunca se
+sirven desde el cache** — siempre re-ejecutan. GET/HEAD/OPTIONS usan
+el cache; haz clic en engranaje de toolbar → **Clear cache** para
+forzar un re-run.
+
+## Historial de runs
+
+Cada ejecución escribe una fila de metadata a `block_run_history` en
+SQLite — method, URL, status, sizes, elapsed, timestamp. **Los bodies
+NO se guardan** (privacidad). Se mantienen los últimos 10 runs por
+`(file_path, alias)`; haz clic en el ícono **History** de la toolbar
+para verlos.
+
+## Errores comunes
+
+| Mensaje | Causa | Fix |
+|---|---|---|
+| `Invalid HTTP token` | Header key resolvió a un valor con espacios | Revisa los `{{...}}` en tus header keys |
+| `Request cancelled` | Hit `Cmd+.` o el timeout expiró | Aumenta `timeout=` o espera menos agresivamente |
+| `[body_too_large]` | La respuesta excedió 100 MB | Usa **Send-as cURL** + pipea a disco |
+| `Failed to connect` | DNS / network / firewall | Revisa `BASE_URL`, `nslookup`, etc |
+
+## Relacionado
+
+- **[Quickstart](/es/docs/tutorials/quickstart)** — tu primer bloque HTTP
+- **[Test de API encadenado](/es/docs/tutorials/chained-api)** — login → me → assert
+- **[Referencias entre bloques](/es/docs/reference/block-references)** — sintaxis `{{alias.body.X}}`

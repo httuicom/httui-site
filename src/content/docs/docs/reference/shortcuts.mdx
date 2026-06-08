@@ -1,0 +1,142 @@
+---
+title: Keyboard shortcuts & slash commands
+description: Complete keymap for the desktop app — global, editor, block, vim, slash commands.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`Cmd` on macOS, `Ctrl` on Linux/Windows. All shortcuts customisable
+via Settings → Keymap (writes to `user.toml`).
+
+## Global
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+B` | Toggle chat panel |
+| `Cmd+P` | Quick open (fuzzy file search) |
+| `Cmd+Shift+F` | Full-text search across vault |
+| `Cmd+K` | Search blocks, vars, schema |
+| `Cmd+,` | Settings |
+| `Cmd+W` | Close active tab |
+| `Cmd+Shift+W` | Close pane |
+| `Cmd+T` | New tab |
+| `Cmd+Tab` | Cycle tabs forward |
+| `Cmd+Shift+Tab` | Cycle tabs backward |
+| `Cmd+\\` | Split pane vertical |
+| `Cmd+Shift+\\` | Split pane horizontal |
+| `Cmd+E` | Open environment switcher |
+| `Cmd+Shift+V` | New variable (popover) |
+
+## Editor
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+S` | Force save (also autosaves at 1s) |
+| `Cmd+/` | Toggle comment on selection |
+| `Cmd+D` | Select next occurrence |
+| `Cmd+Shift+L` | Select all occurrences |
+| `Cmd+F` | Find in file |
+| `Cmd+G` | Find next |
+| `Cmd+Shift+G` | Find previous |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / Redo |
+| `Cmd+[` / `Cmd+]` | Indent / outdent |
+| `Cmd+Up` / `Cmd+Down` | Move line up/down |
+| `Cmd+L` | Select current line |
+| `Cmd+Click` on `{{...}}` | Jump to alias definition |
+
+## Block actions (cursor inside block)
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+Enter` | Run block |
+| `Cmd+Shift+Enter` | **Run all** blocks in file |
+| `Cmd+.` | Cancel running block |
+| `Cmd+Shift+C` | Copy as cURL (HTTP block) |
+| `Cmd+Shift+E` | Run as EXPLAIN (DB block) |
+| `Cmd+Shift+R` | Force re-run (skip cache) |
+
+## Vim mode
+
+Toggle via Settings → Editor → Vim mode (or `:set vim` in command
+palette). Provided by `@replit/codemirror-vim`.
+
+Standard vim motions work. Notable httui extensions:
+
+| Vim command | Action |
+|---|---|
+| `:run` | Run block under cursor |
+| `:run-all` | Run all blocks |
+| `:cancel` | Cancel running block |
+| `:env <name>` | Switch active environment |
+
+`Alt+1..9` is **disabled** by default (conflicts with macOS window
+managers like Aerospace). Re-bind in `user.toml` if needed.
+
+## Slash commands
+
+Type `/` at the start of a line in the editor — a command palette
+appears. Pick to insert a template.
+
+| Command | Inserts |
+|---|---|
+| `/HTTP Request` | Generic HTTP block scaffold |
+| `/HTTP GET` | GET request template |
+| `/HTTP POST` | POST request template with JSON body |
+| `/HTTP PUT` | PUT request template |
+| `/HTTP DELETE` | DELETE request template |
+| `/DB Query` | Picks connection from a dropdown, inserts SELECT |
+| `/Diff` | Standalone diff block (two text panes) |
+| `/Mermaid` | Mermaid diagram code block |
+
+Each template lands with the cursor on the URL / SQL line so you
+can start typing immediately.
+
+## Reference autocomplete
+
+Type `{{` in any block body → popover lists:
+
+- Block aliases above the current cursor
+- Env vars from the active environment
+
+Filter by typing. `Tab` to complete. `Esc` to cancel. The popover
+shows a small hint (`(cached)` if the alias has been run, `(env)`
+for env vars).
+
+## Schema autocomplete (DB blocks)
+
+Type a table name in a DB block — Schema-aware popover suggests
+columns with their types. Type a column → see type info hover.
+
+## Git panel
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+G` (when git panel open) | Stage all + commit |
+| `Cmd+Shift+S` | Sync (stage → commit → pull `--ff-only` → push) |
+| `Cmd+B` (when git panel focused) | Branch picker |
+
+## TUI
+
+The terminal binary (`httui-tui`) has its own keymap — see
+[CLI reference](/docs/reference/cli). It deliberately avoids
+`Alt+<digit>` chords; prefers `g`-prefix sequences (vim-style)
+and bare letters.
+
+## Customisation
+
+Settings → Keymap shows every action with its current binding. Click
+to rebind. Resets persist to `user.toml`:
+
+```toml
+[keymap]
+"chat.toggle" = "Cmd+J"            # was Cmd+B
+"block.run" = "Cmd+R"              # was Cmd+Enter
+```
+
+Reload settings to apply (or restart the app).
+
+## Related
+
+- **[HTTP block](/docs/reference/http-block#keyboard)** — block-specific shortcuts
+- **[DB block](/docs/reference/db-block#keyboard)** — DB shortcuts
+- **[CLI](/docs/reference/cli)** — TUI binary keymap

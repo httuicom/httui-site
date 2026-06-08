@@ -1,0 +1,180 @@
+---
+import { css } from "../../../styled-system/css";
+
+const wrap = css({
+  bg: "bg.surface",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "lg",
+  p: "4",
+  fontFamily: "mono",
+  fontSize: "xs",
+  boxShadow: "card",
+});
+const h = css({
+  fontFamily: "heading",
+  fontSize: "lg",
+  fontWeight: "600",
+  color: "fg",
+  mb: "1",
+});
+const lede = css({
+  fontFamily: "heading",
+  fontSize: "13px",
+  lineHeight: "1.55",
+  color: "fg.muted",
+  mb: "3",
+});
+const ledeCode = css({
+  fontFamily: "mono",
+  fontSize: "12px",
+  px: "1",
+  bg: "bg.elevated",
+  rounded: "sm",
+});
+
+const block = css({
+  bg: "bg.elevated",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "md",
+  overflow: "hidden",
+});
+const blockMb = css({ mb: "2.5" });
+
+const blockHead = css({
+  display: "flex",
+  alignItems: "center",
+  h: "28px",
+  px: "2.5",
+  gap: "2",
+  bg: "bg.subtle",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const methodPost = css({
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "600",
+  letterSpacing: "wider",
+  px: "1.5",
+  py: "0.5",
+  rounded: "sm",
+  color: "sky.500",
+  bg: "accent.subtle",
+  _dark: { bg: "bg.elevated" },
+});
+const sqlPill = css({
+  fontFamily: "mono",
+  fontSize: "9px",
+  fontWeight: "700",
+  px: "1.5",
+  py: "0.5",
+  bg: "moss.700",
+  color: "paper.100",
+  rounded: "sm",
+});
+const headTxt = css({ fontSize: "xs", color: "fg" });
+const spacer = css({ flex: "1" });
+const ok = css({
+  fontSize: "11px",
+  color: "ok",
+  fontWeight: "600",
+});
+
+const body = css({
+  px: "2.5",
+  py: "2",
+  fontSize: "11px",
+  lineHeight: "1.6",
+  color: "fg.muted",
+});
+const bodySql = css({
+  px: "2.5",
+  py: "2",
+  fontSize: "11px",
+  lineHeight: "1.7",
+  color: "fg.muted",
+});
+const indent = css({ pl: "3.5" });
+const jsonKey = css({ color: "accent.emphasized" });
+const jsonStr = css({ color: "ok" });
+const jsonBool = css({ color: "info" });
+const sqlKw = css({ color: "info" });
+
+const footer = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  px: "2.5",
+  py: "1.5",
+  bg: "accent.subtle",
+  borderTopWidth: "1px",
+  borderColor: "border.subtle",
+  fontSize: "10px",
+  color: "fg.muted",
+});
+const captured = css({
+  fontWeight: "600",
+  color: "accent.emphasized",
+});
+const linkIcon = css({ color: "accent", flexShrink: 0 });
+
+// raw curly literals stored in JS to dodge Astro's mustache parser
+const urlHttp = "{{api}}/v2/payments";
+const refPayment = "{{payment_id}}";
+---
+
+<div class={wrap}>
+  <div class={h}>1. Verify shadow traffic</div>
+  <div class={lede}>
+    Confirm <code class={ledeCode}>payments-router</code> is mirroring 5% of requests in staging.
+  </div>
+
+  {/* HTTP block */}
+  <div class={`${block} ${blockMb}`}>
+    <div class={blockHead}>
+      <span class={methodPost}>POST</span>
+      <span class={headTxt}>{urlHttp}</span>
+      <span class={spacer}></span>
+      <span class={ok}>● 201 · 218ms</span>
+    </div>
+    <div class={body}>
+      <div>{"{"}</div>
+      <div class={indent}>
+        <span class={jsonKey}>"id"</span>: <span class={jsonStr}>"pay_01H8XK..."</span>,
+      </div>
+      <div class={indent}>
+        <span class={jsonKey}>"provider"</span>: <span class={jsonStr}>"stripe_v2"</span>,
+      </div>
+      <div class={indent}>
+        <span class={jsonKey}>"shadow"</span>: <span class={jsonBool}>true</span>
+      </div>
+      <div>{"}"}</div>
+    </div>
+    <div class={footer}>
+      <svg class={linkIcon} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <span>captured:</span>
+      <span class={captured}>payment_id</span>
+      <span>= pay_01H8XK…</span>
+    </div>
+  </div>
+
+  {/* SQL block */}
+  <div class={block}>
+    <div class={blockHead}>
+      <span class={sqlPill}>SQL</span>
+      <span class={headTxt}>pg · payments@staging</span>
+      <span class={spacer}></span>
+      <span class={ok}>● 1 row · 14ms</span>
+    </div>
+    <div class={bodySql}>
+      <div>
+        <span class={sqlKw}>SELECT</span> status, provider <span class={sqlKw}>FROM</span> payments
+      </div>
+      <div>
+        <span class={sqlKw}>WHERE</span> id = <span class={jsonKey}>{refPayment}</span>
+      </div>
+    </div>
+  </div>
+</div>

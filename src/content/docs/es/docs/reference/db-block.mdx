@@ -1,0 +1,227 @@
+---
+title: Bloque DB
+description: Referencia completa para bloques fenced SQL — drivers, mutation guard, EXPLAIN, grid de resultados, bind parameters.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+El bloque DB es un bloque de código fenced de markdown cuyo lenguaje
+es `db-<connection-name>`, donde `<connection-name>` es una key de
+`connections.toml`. Cada conexión auto-registra su propio block type.
+
+## Ejemplo mínimo
+
+````markdown
+```db-local
+SELECT id, name FROM users LIMIT 10
+```
+````
+
+El lenguaje de la fence es `db-local` porque hay una entrada
+`[connections.local]` en `connections.toml`.
+
+## Drivers soportados
+
+| Type | Connection string | Notas |
+|---|---|---|
+| `sqlite` | `path = "./file.sqlite"` | Auto-crea el archivo en el primer uso |
+| `postgres` | `host`, `port`, `database`, `user`, `password`, `ssl_mode` | driver sqlx postgres |
+| `mysql` | `host`, `port`, `database`, `user`, `password` | driver sqlx mysql |
+
+Ve [config-files](/es/docs/reference/config-files) para el schema
+completo de `connections.toml`.
+
+## Tokens del info-string
+
+| Token | Default | Notas |
+|---|---|---|
+| `alias=<name>` | none | Requerido para capture/chain (`{{users.row[0].id}}`). |
+| `timeout=<ms>` | `60000` | Query timeout en milisegundos. |
+| `display=<mode>` | `split` | Layout del panel (igual que HTTP). |
+
+El lenguaje de la fence **es** la conexión — no hay token `connection=`
+separado.
+
+## Bind parameters (SQL safety)
+
+Las referencias `{{...}}` en un SQL body **siempre** se convierten en
+bind parameters. Nunca son string-interpoladas.
+
+````markdown
+```db-local
+SELECT * FROM orders
+WHERE customer_id = {{user.body.id}}
+  AND status = {{filter.body.status}}
+```
+````
+
+Lo que ve el driver:
+
+```sql
+SELECT * FROM orders
+WHERE customer_id = $1
+  AND status = $2
+```
+
+Bind values: `[user.body.id, filter.body.status]`.
+
+**Cero superficie de SQL injection.** Incluso con valores controlados
+por el usuario fluyendo desde respuestas HTTP, el binding de
+prepared-statement del driver maneja type coercion y escaping.
+
+<Aside type="caution" title="Qué no se puede parametrizar">
+  Los bind parameters funcionan para VALUES, no para identifiers. No
+  puedes parametrizar table names, column names, o expresiones
+  dinámicas de `ORDER BY`. Para eso necesitarías inlinear (y aceptar
+  el riesgo de SQLi si el valor viene de user input).
+</Aside>
+
+## Mutation guard
+
+Cuando un bloque contiene `DELETE`, `UPDATE`, `INSERT`, `TRUNCATE`,
+`DROP`, o `ALTER`, httui muestra un banner de confirmación antes de
+ejecutar:
+
+> ⚠ Este bloque contiene `UPDATE`. ¿Ejecutar de todos modos?
+
+El guard es **estructural** — httui parsea el SQL con un scanner, no
+una regex sobre la primera palabra. Así que:
+
+- `UPDATE` dentro de un comentario `--` **no** se flagea.
+- Un `DELETE` enterrado después de un `SELECT` en un bloque
+  multi-statement **sí** se flagea.
+
+Deshabilita por bloque vía el engranaje de la toolbar → **Skip
+mutation prompt** (persistido per-block en el info-string). Mejor
+para runbooks en los que confías y ejecutas a menudo.
+
+## Bloques multi-statement
+
+Puedes poner múltiples sentencias SQL en un bloque, separadas por
+punto y coma:
+
+````markdown
+```db-local
+CREATE TEMP TABLE staging AS SELECT * FROM users WHERE active = false;
+DELETE FROM staging WHERE created_at < unixepoch() - 30 * 86400;
+SELECT count(*) FROM staging;
+```
+````
+
+El mutation guard se flagea si **cualquier** statement es
+destructivo. Los resultados vienen **solo** de la última sentencia —
+la grid de resultados muestra las filas del `SELECT` final.
+
+## Panel de resultados
+
+El panel de respuesta tiene una **grid virtualizada** para resultados
+de SELECT:
+
+- Headers de columna sorteables (click)
+- Badge de tipo por columna (`int`, `text`, `jsonb`, etc)
+- Botón copy-as-CSV
+- Renderizado windowed — 100k+ filas siguen scrollables
+
+Para bloques de mutación (`INSERT`/`UPDATE`/`DELETE`), el panel
+muestra "N rows affected" + el elapsed time.
+
+## Referencias encadenadas
+
+La primera fila de cada resultado es la "respuesta" implícita —
+encadena hacia ella desde bloques posteriores:
+
+````markdown
+```db-local alias=users_list
+SELECT id, email FROM users ORDER BY id LIMIT 1
+```
+
+```http
+GET {{BASE_URL}}/users/{{users_list.row[0].id}}
+```
+````
+
+Fields disponibles en la respuesta de un bloque DB:
+
+| Field | Significado |
+|---|---|
+| `row[N].<col>` | valor de la columna de la n-ésima fila |
+| `rows` | array completo de resultados (raro encadenar sobre esto) |
+| `rows.length` | número de filas |
+| `affected` | filas afectadas por mutación |
+
+## EXPLAIN
+
+Ejecuta cualquier `EXPLAIN ANALYZE` (Postgres / MySQL) o `EXPLAIN
+QUERY PLAN` (SQLite) y el panel renderiza el plan como un **tree
+view**:
+
+- Scans secuenciales con costo alto se resaltan en rojo
+- Nested-loop joins con estimates de cardinalidad malos se flagean
+- Click derecho en cualquier nodo → **Copy as TEXT** para compartir
+
+## Session override (host/port)
+
+Para conexiones donde necesitas SSH-tunnel local pero el
+`connections.toml` compartido apunta al hostname de producción, usa
+el diálogo **`⚙ Session override`** de la toolbar:
+
+```
+host: 127.0.0.1
+port: 15432
+```
+
+El override es **session-only** — no se persiste a disco, aplicado
+por run de DB. El pool de conexión base queda intocado; httui crea
+un pool override-keyed para la sesión de override. Útil para trabajo
+puntual de tunnel sin editar `.local.toml`.
+
+## Cache
+
+El mismo hash SHA-256 que los bloques HTTP:
+
+```
+SQL text (después de la sustitución de binds) + bind values
+  + env snapshot (solo vars referenciadas)
+```
+
+Las sentencias de mutación
+(`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`/`DROP`/`ALTER`) **nunca se
+cachean** — siempre re-ejecutan. Los resultados de SELECT cachean;
+limpia vía engranaje de la toolbar → **Clear cache**.
+
+## Schema explorer
+
+Haz clic en el tab **Schema** del sidebar para browsear el schema
+de la conexión activa — tablas, columnas con tipos, foreign keys,
+índices, estimates de row count.
+
+Los schemas se introspectan al abrir la conexión + se cachean en
+`notes.db`. Haz clic en el ícono refresh para re-introspectar (útil
+después de una migration).
+
+El autocomplete schema-aware se dispara dentro de bloques DB: tipea
+un nombre de tabla, obtén sugerencias de columnas; tipea un nombre de
+columna, obtén type info.
+
+## Teclado
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+Enter` | Ejecutar bloque |
+| `Cmd+.` | Cancelar query en ejecución |
+| `Cmd+Shift+E` | Ejecutar como EXPLAIN (wrappea la query) |
+
+## Errores comunes
+
+| Mensaje | Causa | Fix |
+|---|---|---|
+| `connection refused` | DB no alcanzable | Revisa host/port, tunnel, firewall |
+| `relation "X" does not exist` | Schema / search_path equivocado | Usa nombre completamente calificado `public.X` |
+| `password authentication failed` | Creds equivocadas | Actualiza vía Environment manager (ve [secrets](/es/docs/how-to/secrets)) |
+| `pool exhausted` | Demasiadas queries concurrentes contra la misma conn | Reduce paralelismo en Run-all |
+
+## Relacionado
+
+- **[Tutorial agregar una DB](/es/docs/tutorials/add-database)** — setup first-time
+- **[Referencias entre bloques](/es/docs/reference/block-references)** — `{{row[N].col}}`
+- **[Archivos de configuración → connections.toml](/es/docs/reference/config-files)**

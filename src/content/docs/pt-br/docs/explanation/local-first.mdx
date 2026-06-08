@@ -1,0 +1,165 @@
+---
+title: Local-first
+description: Por que o httui não tem cloud, telemetria nem conta — seus runbooks, seus dados, sua máquina.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+httui é um **app desktop** que conversa com o filesystem da sua
+máquina, com o keychain e com drivers de banco de dados. Não
+existe cloud httui, conta pra criar, beacon de telemetria nem
+tracking de uso. Essa página explica por quê e o que isso
+significa na prática.
+
+## O que "local-first" significa aqui
+
+| Aspecto | Postura do httui |
+|---|---|
+| **Onde seus runbooks vivem** | Uma pasta no seu disco que você escolheu |
+| **Onde o sync rola** | Git, executado por você (push pro GitHub, GitLab, self-hosted, o que for) |
+| **Onde os secrets vivem** | Keychain do SO na sua máquina (Keychain.app, Credential Manager, Secret Service) |
+| **Onde o cache vive** | Um arquivo SQLite `notes.db` na pasta do vault |
+| **Telemetria / analytics** | Nenhuma. Zero. O app nunca telefona pra casa pra analytics. |
+| **Servidores de licença / ativação** | Nenhum. Open source, MIT — você pode ler cada linha. |
+| **Check de auto-update** | Sim — busca de GitHub Releases. Desabilite em Settings. |
+
+## Pra que o httui CONVERSA com a rede
+
+Pra ser honesto sobre as chamadas de rede que o app faz quando
+**você** pede:
+
+| Ação | Chamada de rede |
+|---|---|
+| Você roda um bloco HTTP | A request que você escreveu, pra onde você apontou |
+| Você conecta num DB | O DB que você configurou, com as credenciais no seu keychain |
+| Você usa o painel de chat | API Claude (via Anthropic SDK), usa seu `ANTHROPIC_API_KEY` |
+| Você checa por updates | `api.github.com/repos/httuicom/httui/releases/latest` |
+| Você instala pelo script | `httui.com/install.sh` (uma vez) |
+
+Essa é a lista completa. Não tem heartbeat em background, nem
+event stream "quão frequente usuários clicam em X", nem crash
+reporter que esconde o que envia.
+
+## Por que isso importa pra runbooks especificamente
+
+Runbooks contêm **credenciais de produção e detalhes de
+incidente**. Duas razões pra isso fazer local-first não-negociável:
+
+### 1. Dados sensíveis não devem atravessar um terceiro
+
+Seu runbook do fluxo de refund referencia o token de API que
+consegue emitir refunds. Seu runbook de post-mortem de incidente
+contém as queries SQL que revelaram a breach. Isso não pertence ao
+banco de um vendor SaaS, indexado e replicado em várias regiões,
+sujeito a qualquer lista de sub-processor que eles atualizaram no
+mês passado.
+
+Quando o httui resolve `{{REFUND_TOKEN}}`, ele lê do keychain do
+seu SO e substitui o valor na request. O token existe por ~200
+microssegundos na memória do processo, nunca cruza fronteira de
+rede exceto pra dentro do endpoint de API que **você** escolheu.
+
+### 2. O vault sobrevive à ferramenta
+
+httui pode falhar como produto. Os runbooks na sua pasta
+`runbooks/` não devem morrer com ele.
+
+| Se o httui fechar amanhã | O que você tem |
+|---|---|
+| Seus runbooks | Arquivos `.md` no seu repo git, legíveis em qualquer editor |
+| Seus secrets | Ainda no keychain do seu SO, gerenciáveis via UI do sistema |
+| Sua lista de conexões | Um `connections.toml` puro, ainda parseável à mão |
+| O histórico de execução | Perdido (estava em `notes.db`), mas isso é cache |
+
+Compare com "uma conta na cloud do Postman" — coleções vivem no
+serviço deles. Se eles sumirem ou mudarem preço, as coleções somem
+ou ficam reféns.
+
+## Como o sync funciona sem servidor
+
+O httui usa **git** como camada de sync. Você dá push do vault
+pra qualquer remote git — GitHub, GitLab, Gitea, um repo bare num
+VPS, self-host com Tailscale. Seu colega clona. Agora os dois
+têm.
+
+| Preocupação | Resposta do git |
+|---|---|
+| Colaboração | Branches, PRs, code review |
+| Histórico | `git log`, `git blame`, `git revert` |
+| Resolução de conflito | 3-way merge padrão — diff é só texto |
+| Permissões | O que seu git host te der |
+| Audit log | Toda mudança é um commit assinado |
+
+O vault tem um workflow git opinionado embutido no **painel Git**
+do lado direito — stage, commit, sync (`pull --ff-only` + `push`)
+sem sair do editor. Mas você também pode usar `git` pelo terminal
+— mesmos arquivos.
+
+## O que "sem telemetria" significa de verdade
+
+A gente é explícito porque a maioria dos produtos que dizem "sem
+telemetria" significam "sem telemetria do site de marketing"
+enquanto ainda telefonam pra casa pelo app desktop via crash
+reporters ou beacons de update.
+
+httui:
+
+- **Sem Sentry / Bugsnag / Rollbar** — crashes produzem um arquivo de log local que você pode anexar numa issue do GitHub se quiser
+- **Sem Plausible / Fathom / GA** no binário desktop
+- **Sem contador de "uso anônimo"** pra que menus você clica
+- **Sem framework de A/B testing**
+- **Sem serviço de feature-flag** — flags shippam no binário, sem fetch em runtime
+
+O check de update
+(`api.github.com/repos/httuicom/httui/releases/latest`) é um único
+GET que o GitHub vê, e tá atrás de um toggle de Settings.
+
+## E o painel de chat?
+
+Se você usa o painel de chat, o **texto da sua conversa** mais o
+**conteúdo dos arquivos que o chat lê** viajam pra API da
+Anthropic (Claude). Esse é o modelo servindo as responses; não
+tem servidor httui intermediário.
+
+Permissões:
+
+- Comandos Bash sempre requerem OK por chamada
+- Edit/Write fora do `cwd` da sessão são hard-denied (sem prompt)
+- Read dentro do `cwd` da sessão é auto-allowed
+- Outras tools: prompt com escopo Once / Session / Always
+
+Regras de permissão são persistidas **no seu `notes.db`**, não em
+nenhuma cloud. Veja [Chat & MCP](/pt-br/docs/chat-and-mcp) pro
+modelo completo.
+
+## E analytics pro site (httui.com)?
+
+`httui.com` (o site onde você tá lendo isso) é um site estático
+no GitHub Pages. Não tem JavaScript que carrega SDK de analytics.
+As únicas chamadas outbound que um browser faz são pra buscar
+fontes (CDN Google Fonts) e Mermaid pros diagramas (CDN jsdelivr).
+
+Se você não quer nem isso, o site degrada graciosamente — fontes
+caem pra system, blocos Mermaid aparecem como texto de código.
+
+## O trade-off
+
+Local-first não é grátis. Você abre mão de:
+
+- **Compartilhamento de time num clique**. Você precisa de um git host. (A maioria dos times já tem.)
+- **Sensação "abre no browser"**. O binário desktop é ~80 MB. (Mesmo que Postman / Insomnia / Bruno.)
+- **SRE do vendor de plantão**. Se você self-hostiza o remote git, é com você.
+
+O que você ganha:
+
+- **Seus dados, nos seus discos, acessíveis sem conexão de internet**
+- **Sem crescimento de custo conforme seu time cresce** — o app desktop é grátis
+- **Sem vendor lock-in, sem custo de migração**
+- **Code path auditável** — leia o source no GitHub
+
+## Relacionado
+
+- **[O modelo mental](/pt-br/docs/explanation/mental-model)** — o que um runbook *é*
+- **[Layout do vault](/pt-br/docs/reference/vault-layout)** — o que vive onde no disco
+- **[Guarde secrets](/pt-br/docs/how-to/secrets)** — detalhes da integração com keychain
+- **[Chat & MCP](/pt-br/docs/chat-and-mcp)** — as únicas chamadas de rede relacionadas a AI

@@ -1,0 +1,197 @@
+---
+title: Assert response shape and timing
+description: Turn any block into a smoke test with an `# expect:` section — operators, fields, behavior on failure.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+An `# expect:` section turns a block from "show me what came back"
+into "**fail the runbook if any of these aren't true**". Useful for
+smoke tests committed to git and run as a CI step, or for the
+local "did staging drift since yesterday?" check.
+
+## Syntax
+
+Inside any block (HTTP or DB), add a section starting with `# expect:`
+on its own line. Each line below is one assertion: `<field> <operator> <value>`.
+
+````markdown
+```http
+GET {{BASE_URL}}/health
+
+# expect:
+#   status == 200
+#   time < 500ms
+#   body.status == "ok"
+#   body.version matches /^v\\d+\\.\\d+\\.\\d+$/
+```
+````
+
+Anything after `# expect:` until the closing fence (or a blank
+line followed by non-# content) is parsed as assertions.
+
+## Fields you can assert on
+
+Same fields as [block references](/docs/how-to/references), plus
+two HTTP-only:
+
+| Field | Notes |
+|---|---|
+| `status` | numeric HTTP status |
+| `time` | total elapsed (in `ms` / `s`) |
+| `size` | response body bytes |
+| `body.<path>` | JSON path |
+| `headers.<name>` | response header (case-insensitive) |
+| `cookies.<name>` | set-cookie value |
+| `affected` | DB only — INSERT/UPDATE/DELETE row count |
+| `row[N].<col>` | DB only — column of nth result row |
+| `rows.length` | DB only — number of rows returned |
+
+## Operators
+
+| Operator | Meaning | Works on |
+|---|---|---|
+| `==` | strict equality | strings, numbers, booleans, null |
+| `!=` | not equal | same |
+| `<` `<=` `>` `>=` | numeric comparison | numbers (incl. `time`, `size`) |
+| `contains` | substring or array membership | strings, arrays |
+| `not contains` | inverse of contains | strings, arrays |
+| `matches` | regex match | strings (regex between `/.../`) |
+| `exists` | path resolves (no RHS needed) | any field |
+| `not exists` | inverse | any field |
+| `is` | type check (`number`, `string`, `array`, `object`, `null`) | any field |
+
+## Time units
+
+`time` and `size` accept suffixes:
+
+```
+time < 500ms
+time < 1.5s
+time < 1m
+size < 10kb
+size < 100mb
+```
+
+| Suffix | Meaning |
+|---|---|
+| `ms` | milliseconds |
+| `s` | seconds |
+| `m` | minutes (rare) |
+| `b` / `kb` / `mb` / `gb` | bytes (powers of 1024) |
+
+No suffix means raw integer (`time < 500` is `< 500ms` by default,
+since `time` is in ms; `size < 100` is bytes).
+
+## Cross-block assertions with references
+
+References work inside `# expect:` like anywhere else:
+
+````markdown
+```http alias=cutoff
+GET {{BASE_URL}}/last-sync
+```
+
+```http
+GET {{BASE_URL}}/changes
+
+# expect:
+#   status == 200
+#   body.since == {{cutoff.body.timestamp}}
+#   body.changes.length > 0
+```
+````
+
+Useful for "did the API agree with what we last fetched?" checks.
+
+## Behavior on failure
+
+When any assertion fails:
+
+1. The block toolbar turns **red**.
+2. The result panel shows the **expected vs actual** side by side:
+   ```
+   ✗ status == 200
+       expected: 200
+       actual:   503
+   ✓ time < 500ms (143ms)
+   ✗ body.status == "ok"
+       expected: "ok"
+       actual:   "degraded"
+   ```
+3. **Downstream blocks don't run** in a Run-all — httui short-circuits
+   on the first failure.
+4. The status bar pass/fail count updates: `2 passed · 1 failed`.
+
+## Run-all and CI
+
+Press **`Cmd+Shift+Enter`** (or click **Run all** in the status bar)
+to run every block top-to-bottom. The summary shows total pass/fail
+across all `# expect:` sections.
+
+For CI, the `httui-tui` binary takes the same vault and can run
+specific runbooks:
+
+```bash
+httui-tui run runbooks/smoke-staging.md --env staging
+# exits 0 if all expects pass, non-zero if any failed
+```
+
+Pipe into your CI step like any other test command.
+
+<Aside type="tip" title="Smoke test pattern">
+  Have one runbook per critical flow: `runbooks/smoke-payments.md`,
+  `runbooks/smoke-auth.md`, etc. Each has a few HTTP blocks with
+  `# expect:` sections. `httui-tui run runbooks/smoke-*.md --env prod`
+  in CI gives you a passing-or-failing health snapshot in 5 seconds.
+</Aside>
+
+## Skip an assertion temporarily
+
+Comment it out with an extra `#`:
+
+```
+# expect:
+#   status == 200
+##   time < 500ms     ← skipped (flaky on cold cache)
+#   body.status == "ok"
+```
+
+The double-`##` is httui's "ignore this expect line" convention.
+Better than deleting because the intent is preserved.
+
+## Multiple expect sections
+
+You can have more than one — they're aggregated:
+
+```http
+GET {{BASE_URL}}/users
+
+# expect:
+#   status == 200
+
+GET {{BASE_URL}}/users/admin
+
+# expect:
+#   status == 200
+#   body.role == "admin"
+```
+
+Each `# expect:` applies to the most recent block. Useful when the
+block has logical sub-steps you want to assert separately.
+
+## Common gotchas
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `body.X` exists check fails on null | `exists` returns false for `null` body fields | Use `body.X is null` to distinguish |
+| Regex doesn't match | Forgot to escape `/` inside the regex | `matches /^v\\d+\\/release$/` (escape `/` as `\\/`) |
+| Time assertion always fails on first run | Cold connection / DNS lookup | First run baseline is slower; consider `time < <p99-of-typical-runs>` |
+| Header assertion case-mismatch | HTTP headers are case-insensitive — httui normalizes | `headers.content-type` and `headers.Content-Type` are the same |
+
+## Related
+
+- **[Build a chained API test](/docs/tutorials/chained-api)** — see
+  `# expect:` in a real flow.
+- **[Reference values between blocks](/docs/how-to/references)** —
+  use refs inside assertions for cross-block checks.

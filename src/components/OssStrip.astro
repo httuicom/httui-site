@@ -65,10 +65,12 @@ const cellData = [
 ];
 
 const cells = cellData.map((s, i) => {
-  const styles: string[] = [];
-  if (i % 2 === 0) styles.push("border-right: 1px solid var(--colors-border)");
-  if (i < 2) styles.push("border-bottom: 1px solid var(--colors-border)");
-  return { ...s, style: styles.join(";"), mdRight: i < 3 };
+  return {
+    ...s,
+    baseRight: i % 2 === 0,
+    baseBottom: i < 2,
+    mdRight: i < 3,
+  };
 });
 
 const section = css({
@@ -95,7 +97,7 @@ const tagline = css({
 const grid = css({
   maxW: "980px",
   mx: "auto",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "border",
   rounded: "lg",
   bg: "bg.surface",
@@ -108,6 +110,25 @@ const cellBase = css({
   py: "6",
   textAlign: "center",
   borderColor: "border",
+});
+const baseRightOn = css({
+  borderRightWidth: "1px",
+  borderRightStyle: "solid",
+  borderColor: "border",
+  md: { borderRightWidth: "0" },
+});
+const mdRightOn = css({
+  md: {
+    borderRightWidth: "1px",
+    borderRightStyle: "solid",
+    borderColor: "border",
+  },
+});
+const baseBottomOn = css({
+  borderBottomWidth: "1px",
+  borderBottomStyle: "solid",
+  borderColor: "border",
+  md: { borderBottomWidth: "0" },
 });
 const cellValue = css({
   fontFamily: "heading",
@@ -140,12 +161,18 @@ const cellSub = css({
     <p class={tagline}>{t.tagline}</p>
   </header>
   <div class={grid}>
-    {cells.map((s) => (
-      <div class={cellBase} style={s.style}>
-        <div class={cellValue}>{s.v}</div>
-        <div class={cellLabel}>{s.k}</div>
-        <div class={cellSub}>{s.sub}</div>
-      </div>
-    ))}
+    {cells.map((s) => {
+      const classes = [cellBase];
+      if (s.baseRight) classes.push(baseRightOn);
+      if (s.mdRight) classes.push(mdRightOn);
+      if (s.baseBottom) classes.push(baseBottomOn);
+      return (
+        <div class={classes.join(" ")}>
+          <div class={cellValue}>{s.v}</div>
+          <div class={cellLabel}>{s.k}</div>
+          <div class={cellSub}>{s.sub}</div>
+        </div>
+      );
+    })}
   </div>
 </section>

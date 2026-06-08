@@ -1,0 +1,167 @@
+---
+title: Construye un test de API encadenado
+description: Login, captura un token, llama a un endpoint protegido, luego verifica la respuesta — todo en un solo runbook.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Este tutorial construye un runbook multi-bloque que simula un chequeo
+real end-to-end de API: autentica, usa el token, verifica que el
+resultado sea el esperado. Es el flujo al que vas a recurrir cada vez
+que debuggees staging o escribas un smoke test para CI.
+
+**Tiempo:** ~15 minutos · **Prerequisitos:** terminado el
+[Quickstart](/es/docs/tutorials/quickstart).
+
+## Qué vas a construir
+
+Al final vas a tener un runbook con **3 bloques encadenados**:
+
+```mermaid
+graph LR
+  A[login] -- token --> B[me]
+  B -- user.id --> C[assert]
+```
+
+- `login` → POST `/auth/login`, captura el JWT
+- `me` → GET `/users/me` con el bearer token de `login`
+- `assert` → una sección `# expect:` que falla el runbook si `time` o `status` driftean
+
+httui maneja el grafo de dependencias automáticamente — ejecutar `me`
+ejecuta `login` primero; ejecutar `assert` ejecuta ambos.
+
+## 1. La API que vas a llamar
+
+Vamos a usar [httpbin](https://httpbin.org) y un pequeño helper de
+fake-auth — ambos públicos, sin signup. El "login" devuelve lo que sea
+que envíes como "token" falso, y "/anything" hace echo de tu request
+para que puedas confirmar que el header bearer llegó al servidor.
+
+Para la assertion vamos a apuntar a un endpoint `/json` de forma fija
+para poder verificar campos reales.
+
+## 2. Crea el runbook
+
+En `runbooks/`, crea `auth-flow.md`. Ábrelo y agrega una intro corta
+arriba:
+
+````markdown
+# Auth flow smoke test
+
+Una cadena de dos pasos login → me → assert para verificar que el
+staging gateway no esté dropeando bearer tokens.
+````
+
+## 3. Bloque 1 — login
+
+Debajo de la intro, pega este **bloque HTTP**. El `alias=login` en la
+línea de la fence nombra el bloque para que podamos referenciarlo
+después:
+
+````markdown
+```http alias=login
+POST https://httpbin.org/post
+Content-Type: application/json
+
+{
+  "user": "alice",
+  "device": "laptop-42"
+}
+```
+````
+
+Hit **`Cmd+Enter`**. Deberías ver la respuesta echo de httpbin con tu
+JSON en el campo `json`.
+
+<Aside title="Qué hace el alias">
+  `alias=login` nombra a este bloque. Cualquier bloque abajo puede
+  leer su respuesta capturada como `{{login.body.<path>}}`,
+  `{{login.status}}`, `{{login.headers.<name>}}`, etc.
+</Aside>
+
+## 4. Bloque 2 — me (usa el token)
+
+Ahora la cadena. Agrega abajo:
+
+````markdown
+```http alias=me
+GET https://httpbin.org/anything
+Authorization: Bearer {{login.body.json.user}}-{{login.body.json.device}}
+Accept: application/json
+```
+````
+
+La referencia `{{login.body.json.user}}-{{login.body.json.device}}`
+lee `alice` y `laptop-42` de la respuesta de `login` y los usa como un
+bearer token falso. (En producción referenciarías un campo JWT real
+como `{{login.body.access_token}}`.)
+
+<Steps>
+1. Haz clic en cualquier parte del body del bloque `me`.
+2. Presiona **`Cmd+Enter`**.
+3. httui ve que `me` depende de `login` → ejecuta `login` primero
+   (cacheado del paso 3 — instantáneo).
+4. Resuelve las referencias, envía `me`, muestra la respuesta.
+5. En el panel de respuesta, expande el campo `headers` — confirma
+   que `Authorization: Bearer alice-laptop-42` llegó a httpbin.
+</Steps>
+
+Acabas de encadenar dos llamadas reales de API dentro de un solo
+archivo markdown.
+
+## 5. Bloque 3 — assert
+
+Agrega un tercer bloque, pero esta vez usa el endpoint `/json` de
+forma fija y una sección `# expect:`:
+
+````markdown
+```http alias=assert
+GET https://httpbin.org/json
+
+# expect:
+#   status == 200
+#   time < 1500ms
+#   body.slideshow.title contains "Sample"
+```
+````
+
+La sección `# expect:` convierte el bloque de "muéstrame la respuesta"
+a "**falla el runbook si alguna de estas no es verdad**".
+
+Hit **`Cmd+Enter`** en `assert`. Deberías ver las tres assertions
+pasar (check verde al lado de cada línea).
+
+<Aside type="tip" title="Ahora rompe una a propósito">
+  Cambia `status == 200` a `status == 201`. Re-ejecuta. httui marca el
+  bloque en rojo, muestra el expected vs actual side-by-side, y se
+  saltea cualquier cosa abajo en el runbook. Cámbialo de vuelta —
+  verde otra vez.
+</Aside>
+
+## 6. Ejecuta el runbook completo
+
+Presiona **`Cmd+Shift+Enter`** (o haz clic en el botón **Run all** en
+la status bar). httui:
+
+1. Arma el DAG de dependencias (`login` → `me`, `assert` standalone).
+2. Los ejecuta en orden topológico, en paralelo cuando es posible.
+3. Muestra los counts de pass/fail en la status bar.
+
+Para nuestros 3 bloques tarda ~600ms total. En un runbook real con 20
+bloques contra staging, verías los runs paralelos abrirse en abanico
+visiblemente en el panel.
+
+## Qué sigue
+
+Ya tienes el loop dominado: **bloque → captura → referencia → verifica**.
+Eso es el 80% de para qué es httui. Desde acá:
+
+- **[Agrega una base de datos a tu runbook](/es/docs/tutorials/add-database)** —
+  misma idea de cadena pero con SQL: trae una fila, usa el id en una
+  request HTTP, verifica la respuesta.
+- **[Referencias entre bloques](/es/docs/reference/block-references)** — la
+  sintaxis completa de `{{...}}`, las reglas de scoping y cómo
+  funciona `{{$prev}}`.
+- **[Entornos](/es/docs/how-to/environments)** — `{{BASE_URL}}` y
+  similar: variables por entorno para que el mismo runbook pegue a
+  staging, prod, o el tunnel de tu laptop.

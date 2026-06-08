@@ -1,0 +1,204 @@
+---
+title: Helix
+description: Conecte httui-lang no Helix via languages.toml — parser tree-sitter + servidor LSP.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+O Helix tem suporte first-class a tree-sitter + LSP, configurado
+via TOML. httui-lang pluga com uma única entrada `languages.toml`
+mais um fetch de grammar único.
+
+## Instalação
+
+### 1. O binário LSP
+
+```bash
+cargo install httui-lsp
+```
+
+Verifique que tá no `PATH`:
+
+```bash
+httui-lsp --version
+```
+
+### 2. Diga pro Helix sobre a linguagem
+
+Edite `~/.config/helix/languages.toml`:
+
+```toml
+[[language]]
+name = "httui"
+scope = "source.httui"
+file-types = ["httui"]
+roots = [".httui", "runbooks", "connections.toml", "envs"]
+comment-token = "#"
+indent = { tab-width = 2, unit = "  " }
+language-servers = ["httui-lsp"]
+
+[language.auto-pairs]
+'{' = '}'
+'"' = '"'
+"'" = "'"
+'(' = ')'
+
+[language-server.httui-lsp]
+command = "httui-lsp"
+
+[language-server.httui-lsp.config]
+httui = { env = "staging" }
+```
+
+### 3. A grammar tree-sitter
+
+Append no `languages.toml`:
+
+```toml
+[[grammar]]
+name = "httui"
+source = { git = "https://github.com/httuicom/tree-sitter-httui", rev = "main" }
+```
+
+Depois builda:
+
+```bash
+hx --grammar fetch
+hx --grammar build
+```
+
+`hx --health httui` deve agora reportar a grammar como instalada.
+
+### 4. Highlight queries
+
+O Helix precisa das highlight queries em
+`~/.config/helix/runtime/queries/httui/`:
+
+```bash
+mkdir -p ~/.config/helix/runtime/queries/httui
+cd ~/.config/helix/runtime/queries/httui
+curl -O https://raw.githubusercontent.com/httuicom/tree-sitter-httui/main/queries/highlights.scm
+curl -O https://raw.githubusercontent.com/httuicom/tree-sitter-httui/main/queries/injections.scm
+curl -O https://raw.githubusercontent.com/httuicom/tree-sitter-httui/main/queries/folds.scm
+```
+
+(Futuro: vão shippar com o fetch da grammar automaticamente quando
+o runtime do Helix suportar queries embarcadas.)
+
+## Integração markdown
+
+Pra ganhar injeção httui dentro de blocos fenced `.md`, o Helix
+precisa da query de injeção markdown atualizada. Adicione em
+`~/.config/helix/runtime/queries/markdown/injections.scm` (extenda,
+não substitua):
+
+```scheme
+((fenced_code_block
+  (info_string (language) @lang)
+  (code_fence_content) @injection.content)
+ (#match? @lang "^(http|db-)")
+ (#set! injection.language "httui"))
+```
+
+Depois disso, blocos httui fenced dentro de markdown destacam
+corretamente.
+
+## Verifique
+
+```bash
+hx ~/runbooks/runbooks/example.httui
+```
+
+Dentro do Helix:
+
+- `:lsp-info` — deve mostrar `httui-lsp` rodando
+- Hover numa referência `{{...}}` (default `Space+k`) — popup com
+  valor resolvido
+- `gd` numa referência — pula pra definição do alias
+- `Space+r` — rename
+- `Space+a` — code actions
+
+## Ambiente ativo
+
+A setting `env` passa pro LSP. Edite em `languages.toml` e
+recarregue (`:reload`).
+
+Pra trocar por buffer, use a mudança de workspace configuration
+do LSP — o Helix não tem UI built-in pra isso ainda, mas você
+pode rodar:
+
+```
+:lsp-workspace-command httui.setEnv staging
+```
+
+(Comandos custom expostos pelo `httui-lsp` por sessão.)
+
+## Snippets
+
+O Helix tem suporte mínimo a snippets. O httui-lsp shippa **items
+de completion com bodies de snippet** — digitar `http` e confirmar
+o completion expande o scaffold. Mesmo pra `db`, `expect`,
+`expect.status`, etc.
+
+## Rodar blocos do Helix
+
+Mesmo padrão do Neovim — shell out pra `httui-tui`:
+
+```toml
+# ~/.config/helix/config.toml
+[keys.normal.space.h]
+r = ":sh httui-tui run %{buffer_name} --env staging"
+```
+
+`Space+h+r` roda o runbook atual na TUI do lado do Helix.
+
+Pra run-and-show-result inline, o app desktop httui precisa estar
+aberto no mesmo vault — aí o LSP encaminha pra ele via
+`httui/blockRun`.
+
+## Troubleshooting
+
+### `:lsp-info` mostra "Not started"
+
+Cheque `hx --health httui`:
+
+| Output | Significado |
+|---|---|
+| `✓ httui-lsp` | Binário LSP no PATH |
+| `✗ httui-lsp: command not found` | Instale o binário |
+| `✓ grammar httui` | Parser tree-sitter buildado |
+| `✗ grammar httui: not found` | Rerode `hx --grammar fetch && hx --grammar build` |
+
+### Highlight dentro de fences markdown não funciona
+
+A query de injeção markdown precisa mencionar httui explicitamente
+(o Helix não herda automaticamente). Veja o snippet de injeção em
+**Integração markdown** acima.
+
+### LSP attached mas sem diagnostics
+
+Abra `:log` (o log do LSP) e procure por `httui`. Comum: raiz do
+vault não detectada porque o arquivo não tá sob uma pasta que
+contém `.httui` / `runbooks` / `connections.toml`. Workaround:
+crie um `connections.toml` vazio.
+
+## Integração de tema
+
+Grupos de highlight do Helix no seu tema vão pegar:
+
+| Scope de highlight | Recomendação |
+|---|---|
+| `keyword` | Verb HTTP, identifier de linguagem |
+| `function` | aliases de bloco em referências |
+| `constant` | keys de env var |
+| `string` | URLs, valores de header, literais |
+| `variable.parameter` | identifiers internos de referência |
+
+A maioria dos temas já mapeia isso — sem trabalho específico do
+httui.
+
+## Relacionado
+
+- **[Capacidades do LSP](/pt-br/docs/httui-lang/lsp)** — o que o servidor provê
+- **[Grammar tree-sitter](/pt-br/docs/httui-lang/tree-sitter)** — o que o parser produz
+- **[Setup Neovim](/pt-br/docs/httui-lang/editors/neovim)** — modelo de plugin parecido

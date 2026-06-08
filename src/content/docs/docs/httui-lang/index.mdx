@@ -1,0 +1,140 @@
+---
+title: httui-lang
+description: The formal language behind .httui blocks — syntax, LSP server, tree-sitter grammar, editor integrations.
+---
+
+import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+**httui-lang** is the formal definition of the `.httui` block format
+— the fenced syntax you write inside runbooks. It ships as:
+
+- A **tree-sitter grammar** for syntax highlighting in any editor
+  that supports tree-sitter
+- An **LSP server** (`httui-lsp`) with autocomplete, hover,
+  go-to-definition, and diagnostics for references
+- **Editor extensions** for VS Code, Neovim, Zed, Helix, and more
+
+The desktop app and the TUI both embed httui-lang internally. The
+standalone tooling lets you get the same experience in **any editor
+that speaks LSP** — without leaving your usual workflow.
+
+<Aside type="caution" title="Active development">
+  httui-lang is being built out alongside the desktop product. The
+  language spec on this page reflects what the desktop runtime
+  parses today; the standalone LSP + tree-sitter packages are
+  rolling out per editor. See each editor page for current status.
+</Aside>
+
+## What problem this solves
+
+You can already use httui by **opening the desktop app**. So why
+have a language and an LSP?
+
+| Without httui-lang | With httui-lang |
+|---|---|
+| Edit runbooks only in the httui desktop app | Edit them in VS Code / Neovim / Zed with full autocomplete |
+| No syntax highlight in GitHub, Obsidian, etc | Tree-sitter grammar → standard highlight everywhere |
+| Hover a `{{ref}}` outside httui — it's just text | LSP server resolves and shows the value |
+| `httui-lang` is invisible | Publishable to any package registry — others can build tooling |
+
+The bet: runbooks are valuable **as a format**, not just as
+something you open in our app. Making the language and tooling
+first-class means the format can outlive the app — exactly like
+markdown itself.
+
+## The four parts
+
+<CardGrid>
+  <LinkCard
+    title="Syntax"
+    href="/docs/httui-lang/syntax"
+    description="The formal grammar — fence info-strings, body sections (request line, headers, body, expect), reference expressions."
+  />
+  <LinkCard
+    title="LSP server"
+    href="/docs/httui-lang/lsp"
+    description="`httui-lsp` binary capabilities — completion, hover, definitions, diagnostics, code actions."
+  />
+  <LinkCard
+    title="Tree-sitter grammar"
+    href="/docs/httui-lang/tree-sitter"
+    description="Node types, highlight queries, how to integrate with nvim-treesitter, Zed, GitHub, etc."
+  />
+  <LinkCard
+    title="Editor integrations"
+    href="/docs/httui-lang/editors/vscode"
+    description="VS Code, Neovim, Zed, Helix — install and config per editor."
+  />
+</CardGrid>
+
+## Quick taste
+
+A `.httui` file (or a `.md` runbook block — same syntax) opened in
+VS Code with the extension installed:
+
+```http title=auth-flow.httui
+http alias=login timeout=5000
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{ "user": "alice" }
+
+# expect:
+#   status == 200
+#   time < 500ms
+```
+
+What the LSP gives you:
+
+- Hover `{{BASE_URL}}` → "resolved to `https://staging-api.example.com`
+  (env: staging)"
+- Hover `{{login.body.token}}` → shows the captured value if cached,
+  or "no cache — block hasn't been run"
+- `Cmd+Click` `{{login.body.token}}` → jumps to the `login` block's
+  alias definition
+- Type `{{` → autocomplete lists aliases above + env vars from the
+  active env
+- Misspell an alias → squiggly underline, "unknown alias `loginn`"
+
+## Status per editor
+
+| Editor | Tree-sitter | LSP | Status |
+|---|---|---|---|
+| VS Code | yes | yes | **available** — marketplace extension |
+| Neovim | yes (via nvim-treesitter) | yes | **available** — config example below |
+| Zed | yes | yes | **available** — Zed extension |
+| Helix | yes | yes | **available** — `languages.toml` config |
+| IntelliJ | partial | partial | **planned** — TextMate grammar + manual LSP |
+| Sublime | partial | partial | **planned** — LSP-* package |
+
+See each editor's page for the install command and config snippet.
+
+## Standalone vs embedded
+
+| You're using | What you get | Source |
+|---|---|---|
+| httui desktop app | Full LSP behaviour, but embedded — not visible | `httui-lsp` is statically linked |
+| httui-tui (terminal) | Same as desktop | Same |
+| VS Code with extension | Same LSP capabilities, in VS Code's editor | Extension downloads `httui-lsp` binary |
+| Other LSP-aware editors | Same — point at the binary in your `languages.toml` / equivalent | You install `httui-lsp` once |
+
+The LSP server is **the same binary** whether you ship it as part
+of the desktop app or install it standalone via `cargo install httui-lsp`
+(or the per-editor package manager).
+
+## File extensions
+
+| File pattern | What the LSP does |
+|---|---|
+| `*.httui` | Treat whole file as a `.httui` runbook (every line is part of one or more blocks) |
+| `*.md` with `http` / `db-*` fences | Inject LSP behaviour inside the fenced regions only; rest stays markdown |
+
+The dual mode means you can keep your existing `.md` runbooks
+**and** create standalone `.httui` files (no markdown wrapper)
+when you don't need the prose layer.
+
+## Where to next
+
+- **[Syntax](/docs/httui-lang/syntax)** — the formal grammar
+- **[LSP](/docs/httui-lang/lsp)** — what the language server provides
+- **[VS Code](/docs/httui-lang/editors/vscode)** — fastest path to try it

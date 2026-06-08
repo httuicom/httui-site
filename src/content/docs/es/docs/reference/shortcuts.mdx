@@ -1,0 +1,144 @@
+---
+title: Atajos de teclado y slash commands
+description: Keymap completo para la desktop app — global, editor, bloque, vim, slash commands.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`Cmd` en macOS, `Ctrl` en Linux/Windows. Todos los atajos son
+customizables vía Settings → Keymap (escribe a `user.toml`).
+
+## Global
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+B` | Toggle del panel de chat |
+| `Cmd+P` | Quick open (búsqueda fuzzy de archivos) |
+| `Cmd+Shift+F` | Búsqueda full-text en el vault |
+| `Cmd+K` | Buscar bloques, vars, schema |
+| `Cmd+,` | Settings |
+| `Cmd+W` | Cerrar tab activo |
+| `Cmd+Shift+W` | Cerrar pane |
+| `Cmd+T` | Nuevo tab |
+| `Cmd+Tab` | Ciclar tabs hacia adelante |
+| `Cmd+Shift+Tab` | Ciclar tabs hacia atrás |
+| `Cmd+\\` | Split pane vertical |
+| `Cmd+Shift+\\` | Split pane horizontal |
+| `Cmd+E` | Abrir environment switcher |
+| `Cmd+Shift+V` | Nueva variable (popover) |
+
+## Editor
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+S` | Forzar save (también autosavea a 1s) |
+| `Cmd+/` | Toggle comentario en la selección |
+| `Cmd+D` | Seleccionar siguiente ocurrencia |
+| `Cmd+Shift+L` | Seleccionar todas las ocurrencias |
+| `Cmd+F` | Buscar en el archivo |
+| `Cmd+G` | Buscar siguiente |
+| `Cmd+Shift+G` | Buscar anterior |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / Redo |
+| `Cmd+[` / `Cmd+]` | Indent / outdent |
+| `Cmd+Up` / `Cmd+Down` | Mover línea arriba/abajo |
+| `Cmd+L` | Seleccionar línea actual |
+| `Cmd+Click` en `{{...}}` | Saltar a la definición del alias |
+
+## Acciones de bloque (cursor dentro del bloque)
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+Enter` | Ejecutar bloque |
+| `Cmd+Shift+Enter` | **Run all** bloques en el archivo |
+| `Cmd+.` | Cancelar bloque en ejecución |
+| `Cmd+Shift+C` | Copiar como cURL (bloque HTTP) |
+| `Cmd+Shift+E` | Ejecutar como EXPLAIN (bloque DB) |
+| `Cmd+Shift+R` | Forzar re-run (saltear cache) |
+
+## Modo vim
+
+Toggle vía Settings → Editor → Vim mode (o `:set vim` en el command
+palette). Provisto por `@replit/codemirror-vim`.
+
+Las motions vim estándar funcionan. Extensiones notables de httui:
+
+| Vim command | Acción |
+|---|---|
+| `:run` | Ejecutar bloque bajo el cursor |
+| `:run-all` | Ejecutar todos los bloques |
+| `:cancel` | Cancelar bloque en ejecución |
+| `:env <name>` | Cambiar entorno activo |
+
+`Alt+1..9` está **deshabilitado** por default (colisiona con window
+managers de macOS como Aerospace). Re-bindea en `user.toml` si lo
+necesitas.
+
+## Slash commands
+
+Tipea `/` al inicio de una línea en el editor — aparece un command
+palette. Elige para insertar una plantilla.
+
+| Comando | Inserta |
+|---|---|
+| `/HTTP Request` | Scaffold genérico de bloque HTTP |
+| `/HTTP GET` | Plantilla de request GET |
+| `/HTTP POST` | Plantilla de request POST con body JSON |
+| `/HTTP PUT` | Plantilla de request PUT |
+| `/HTTP DELETE` | Plantilla de request DELETE |
+| `/DB Query` | Elige conexión de un dropdown, inserta SELECT |
+| `/Diff` | Bloque standalone de diff (dos panes de texto) |
+| `/Mermaid` | Bloque de código de diagrama Mermaid |
+
+Cada plantilla aterriza con el cursor en la línea de URL / SQL para
+que puedas empezar a tipear inmediatamente.
+
+## Autocomplete de referencias
+
+Tipea `{{` en cualquier body de bloque → el popover lista:
+
+- Aliases de bloque arriba del cursor actual
+- Env vars del entorno activo
+
+Filtra tipeando. `Tab` para completar. `Esc` para cancelar. El
+popover muestra un hint pequeño (`(cached)` si el alias se ejecutó,
+`(env)` para env vars).
+
+## Autocomplete de schema (bloques DB)
+
+Tipea un nombre de tabla en un bloque DB — el popover schema-aware
+sugiere columnas con sus tipos. Tipea una columna → ve type info en
+hover.
+
+## Panel de git
+
+| Atajo | Acción |
+|---|---|
+| `Cmd+G` (con el git panel abierto) | Stage all + commit |
+| `Cmd+Shift+S` | Sync (stage → commit → pull `--ff-only` → push) |
+| `Cmd+B` (con el git panel enfocado) | Branch picker |
+
+## TUI
+
+El binario de terminal (`httui-tui`) tiene su propio keymap — ve
+[CLI reference](/es/docs/reference/cli). Deliberadamente evita
+chords `Alt+<digit>`; prefiere secuencias `g`-prefix (estilo vim) y
+letras solas.
+
+## Customización
+
+Settings → Keymap muestra cada acción con su binding actual. Haz
+clic para re-bindear. Los resets persisten a `user.toml`:
+
+```toml
+[keymap]
+"chat.toggle" = "Cmd+J"            # era Cmd+B
+"block.run" = "Cmd+R"              # era Cmd+Enter
+```
+
+Recarga settings para aplicar (o reinicia la app).
+
+## Relacionado
+
+- **[Bloque HTTP](/es/docs/reference/http-block#teclado)** — atajos específicos del bloque
+- **[Bloque DB](/es/docs/reference/db-block#teclado)** — atajos DB
+- **[CLI](/es/docs/reference/cli)** — keymap del binario TUI

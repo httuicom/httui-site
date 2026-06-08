@@ -1,0 +1,209 @@
+---
+title: Arquitetura
+description: Arquitetura file-backed e git-native — crates, layout do vault, resolução de segredos, file watcher e modelo de processos.
+---
+
+> Reflete a arquitetura file-backed e git-native. A fundação está no
+> lugar nas camadas de storage e secrets; os painéis React que
+> consomem as stores file-backed novas ainda estão sendo migrados do
+> caminho legado SQLite.
+
+## TL;DR
+
+httui-notes é um editor markdown desktop construído em Tauri (backend
+Rust + frontend React). Ele guarda **runbooks + config em arquivos
+de texto puro**, sincroniza via **git** e mantém **segredos no
+keychain do SO**. SQLite ainda existe, mas só como cache e estado
+efêmero.
+
+```
+Desktop app ─┐
+TUI binary  ─┼─ todos leem o mesmo vault em disco
+MCP server  ─┘   (repo git com .md + .toml)
+```
+
+## Crates e componentes
+
+| Caminho | Papel |
+|---|---|
+| `httui-core/` | Biblioteca Rust pura compartilhada: parsers, executors, vault config, secrets, wrapper do git CLI. Sem deps de GUI. |
+| `httui-desktop/src-tauri/` | Backend Tauri v2. Conecta comandos Tauri, dono do watcher rodando + chat sidecar. |
+| `httui-desktop/src/` | Frontend React + TypeScript. Editor CodeMirror 6, Chakra UI v3, stores Zustand. |
+| `httui-tui/` | Binário terminal (viewer + executor read-only pra v1; TUI editor completo é escopo futuro). |
+| `httui-mcp/` | Binário servidor MCP. 14 ferramentas (list/read/create/update notes, search, connections, environments). |
+| `httui-sidecar/` | Processo Node.js spawnado pelo desktop app pra feature de chat (Claude Agent SDK). |
+| `httui-web/` | Landing page de marketing (app Vite separado). |
+
+## Layout do vault
+
+O vault é um repo git comum. O httui adiciona um diretório `.httui/`
+mais alguns arquivos de configuração bem definidos na raiz:
+
+```
+my-vault/
+├── runbooks/                    # arquivos .md com blocos executáveis
+├── connections.toml             # definições de conexão compartilhadas
+├── connections.local.toml       # override pessoal (gitignored)
+├── envs/
+│   ├── local.toml
+│   ├── staging.toml
+│   ├── staging.local.toml       # override pessoal (gitignored)
+│   └── prod.toml
+├── .httui/
+│   ├── workspace.toml           # defaults de workspace (commitado)
+│   └── workspace.local.toml     # override pessoal (gitignored)
+├── .gitignore                   # inclui bloco *.local.toml automaticamente
+└── notes.db                     # cache SQLite (gitignored)
+```
+
+Os arquivos commitados são revisáveis como diffs de PR. Os irmãos
+`.local.toml` fazem deep-merge sobre a base na leitura; escritas
+sempre miram o arquivo base (ADR 0004).
+
+Prefs por máquina (tema, fonte, densidade, keybindings, backend de
+secrets, toggles de MCP) ficam em `~/.config/httui/user.toml` (XDG
+respeitado no Linux; dir de config nativo do SO em outros lugares).
+
+## O que é arquivo vs o que é SQLite
+
+| Dado | Vive em | Sincronizado por git |
+|---|---|---|
+| Runbooks (`.md`) | repo | sim |
+| Definições de conexão | `connections.toml` | sim |
+| Senhas de conexão | keychain do SO | não (por máquina) |
+| Env vars (não secretas) | `envs/&lt;name&gt;.toml` `[vars]` | sim |
+| Env vars (secretas) | keychain do SO (TOML carrega ref `{{keychain:...}}`) | não |
+| Overrides pessoais | `*.local.toml` | não (gitignored) |
+| Defaults de workspace | `.httui/workspace.toml` | sim |
+| Prefs por máquina | `~/.config/httui/user.toml` | não |
+| Histórico de execução | SQLite `block_run_history` | não |
+| Cache de resultado de bloco | SQLite `block_result` | não |
+| Introspecção de schema | SQLite `schema_cache` | não |
+| Sessões de chat | SQLite `sessions` / `messages` | não |
+| Vault ativo / layout de painéis / scroll positions | SQLite `app_config` | não |
+
+As sete chaves de prefs de UI (theme, auto_save_ms, editor_font_size,
+default_fetch_size, history_retention, vim_enabled, sidebar_open)
+ficaram no SQLite durante o MVP; a migração v1 move elas pra
+`user.toml [ui]`. Chaves de estado de sessão (`vaults`, `active_vault`,
+`pane_layout`, `active_pane_id`, `active_file`, `scroll_positions`)
+**ficam no SQLite** porque são writes a cada keystroke.
+
+## Formato do código — `httui-core/src/vault_config/`
+
+A camada de config file-backed vive nesse módulo:
+
+| Arquivo | Papel |
+|---|---|
+| `connections_store.rs` | CRUD em `connections.toml` via keychain. Mtime-cached. |
+| `environments_store.rs` | CRUD em `envs/*.toml` e tracking do env ativo em `user.toml`. |
+| `workspace_store.rs` | CRUD em `.httui/workspace.toml`. |
+| `user_store.rs` | CRUD em `~/.config/httui/user.toml` com resolução XDG. |
+| `merge.rs` | Deep-merge pra overrides `*.local.toml` (ADR 0004). |
+| `gitignore.rs` | Aumenta automaticamente o `.gitignore` do vault com os patterns canônicos `*.local.toml`. |
+| `migration.rs` | Migração one-shot das tabelas SQLite do MVP pro layout em arquivos. Idempotente + dry-run + backup. |
+| `missing_secrets.rs` | Scanner de primeira execução pra refs `{{keychain:...}}` ainda não populadas. |
+| `scaffold.rs` | Esqueleto default do vault + heurística `is_vault()`. |
+| `watch_paths.rs` | Classificador de path puro consumido pelo watcher (Connections / Env / Workspace). |
+| `validate.rs` | Check anti-cleartext-secret + validação estrutural. |
+| `atomic.rs` | Helper de escrita atômica (arquivo temp + fsync + rename, ADR 0003). |
+
+Todas as stores cacheiam por `(base_mtime, local_mtime)` pra que
+edições externas em qualquer um dos lados invalidem corretamente.
+Paths de mutação leem **só a base** pra evitar promover overrides
+pro arquivo commitado (audit-003).
+
+## Resolução de segredos
+
+Referências `{{backend:address}}` em TOML são resolvidas no momento
+da leitura via trait `SecretBackend` (`httui-core/src/secrets/`). A
+impl default é `Keychain` (delega pro crate `keyring` / keychain do
+SO). Backends futuros — Touch ID, Windows Hello, 1Password CLI,
+pass — encaixam atrás da mesma trait sem mudança nos callsites
+(Epics 14-16).
+
+O parser (`secrets/parser.rs`) reconhece quatro prefixos de backend:
+`keychain`, `1password`, `pass`, `env`. Qualquer outra coisa é erro
+de parse.
+
+O validator rejeita valores de secret puros escritos em seções
+`[secrets]` — erro duro, não warning. A válvula de escape é
+`# httui:allow-cleartext` por ADR 0002.
+
+## File watcher
+
+Watcher único nível de SO (crate notify, recursivo) na raiz do
+vault. O dispatcher roteia eventos:
+
+- `*.md` → fluxo `file-reloaded` existente (lê conteúdo, emite pro
+  frontend, ConflictBanner se dirty)
+- TOML de config observado (via `watch_paths::classify`) → emite
+  evento `config-changed` com `{ category, path, env? }`. Stores
+  invalidam caches por mtime; o cutover frontend pendente vai
+  adicionar uma chamada `Store::invalidate_cache()` no recebimento
+  do evento.
+
+Debounce: 500 ms pra `.md`, 250 ms pra TOML (ADR 0003).
+
+## Modelo de processos
+
+```
+┌──────────────────────────┐    ┌──────────────────────────┐
+│  Tauri main (Rust)       │    │  Node.js sidecar         │
+│                          │ ◀──┤  (Claude Agent SDK)      │
+│  - executor registry     │    │                          │
+│  - file watcher          │    │  spawnado na primeira    │
+│  - keychain bridge       │    │  msg de chat; NDJSON     │
+│  - chat permission broker│    │  via stdin/stdout        │
+└──────────────────────────┘    └──────────────────────────┘
+            ▲
+            │ Tauri IPC (invoke / Channel)
+            ▼
+┌──────────────────────────┐
+│  React + Vite (webview)  │
+│                          │
+│  - editor CodeMirror 6   │
+│  - painéis Chakra UI     │
+│  - stores Zustand        │
+└──────────────────────────┘
+```
+
+O sidecar tem health-check via ping/pong e respawna em caso de
+falha com exponential backoff. O permission broker do chat
+(`httui-desktop/src-tauri/src/chat/permissions.rs`) intercepta
+chamadas de tool antes de pedir confirmação do usuário.
+
+## ADRs
+
+Decisões de arquitetura vivem em [`docs/adr/`](https://github.com/httuicom/httui/tree/main/docs/adr):
+
+- [0001 — TOML schemas](https://github.com/httuicom/httui/blob/main/docs/adr/0001-toml-schemas.md)
+- [0002 — Secret references](https://github.com/httuicom/httui/blob/main/docs/adr/0002-secret-references.md)
+- [0003 — File watcher](https://github.com/httuicom/httui/blob/main/docs/adr/0003-file-watcher.md)
+- [0004 — Local overrides](https://github.com/httuicom/httui/blob/main/docs/adr/0004-local-overrides.md)
+
+Decisões futuras passam pelo mesmo template (Status / Contexto /
+Decisão / Consequências / Referências).
+
+## O que NÃO tá aqui (fora de escopo por enquanto)
+
+A superfície deliberadamente excluída:
+
+- Sem web app — só desktop + TUI.
+- Sem CLI runner — `httui run runbook.md --env=staging` é ideia v2.
+- Sem self-host Docker — o vault é um repo git; ele é o servidor de sync.
+- Sem redesign formal do lifecycle de execução de bloco — o
+  "run / cancel" atual basta por enquanto.
+
+## Por onde começar como contribuidor
+
+1. `httui-core/src/blocks/parser.rs` — markdown → AST de bloco.
+2. `httui-core/src/executor/{http,db}/` — caminhos de execução de bloco.
+3. `httui-core/src/vault_config/` — a camada de storage descrita acima.
+4. `httui-desktop/src/components/blocks/` — painéis React pra HTTP / DB.
+5. `httui-desktop/src/stores/` — estado Zustand.
+
+O `CLAUDE.md` na raiz do repo tem as notas de arquitetura em uso
+que os agents AI consomem; é intencionalmente mais granular que
+esse arquivo e mantém os paths e contagens de linha reais pros
+módulos quentes.

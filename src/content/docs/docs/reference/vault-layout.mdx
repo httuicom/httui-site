@@ -1,0 +1,154 @@
+---
+title: Vault layout
+description: What lives in a vault, what's committed vs gitignored, and how httui discovers an existing folder.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+A **vault** is a folder httui treats as a project — runbooks,
+connections, environments, the lot. This page documents what files
+live where and which are committed to git.
+
+## Scaffolded layout
+
+When you use **Create** in the vault picker, httui scaffolds:
+
+```
+~/my-vault/
+├── .httui/
+│   └── workspace.toml          # this-machine UI state (panes, open tabs)
+├── runbooks/                   # your .md files (commit these)
+│   └── (your runbooks)
+├── connections.toml            # DB connections (commit; passwords in keychain)
+├── envs/
+│   ├── local.toml              # env vars per environment
+│   ├── staging.toml
+│   └── prod.toml
+├── notes.db                    # SQLite — cache, history, sessions (gitignored)
+├── user.toml                   # this-machine UI prefs (gitignored)
+└── .gitignore                  # hides *.local.toml + notes.db + user.toml
+```
+
+## What gets committed
+
+| Path | Committed? | Why |
+|---|---|---|
+| `runbooks/**/*.md` | yes | The whole point — your runbooks travel |
+| `connections.toml` | yes | Connection shapes (host/port/db); passwords are `{{keychain:...}}` references |
+| `envs/*.toml` (no `.local`) | yes | Shared env vars across the team |
+| `.httui/workspace.toml` | yes (optional) | Last-open files + pane layout; some teams gitignore |
+| `envs/*.local.toml` | **no** | Per-machine overrides (tunnels, dev DBs) |
+| `notes.db` | **no** | SQLite cache (regenerable) |
+| `user.toml` | **no** | UI preferences per developer |
+| `.httui/secrets.toml` | **no** | Cached keychain sentinels (if any) |
+
+The scaffolded `.gitignore` has all of the above. If you create a
+vault manually, copy the same patterns.
+
+## Vault detection
+
+When you click **Open** in the vault picker, httui treats a folder
+as a vault if **any** of these exist:
+
+- `.httui/` directory
+- `runbooks/` directory
+- Top-level `.md` file
+- `connections.toml`
+- `envs/` directory
+
+If none match, the picker shows "Not recognized as a vault" — use
+**Create** to scaffold one instead.
+
+## Multiple vaults
+
+You can have many vaults on disk. The active vault is one at a time
+per app window. Switch via the TopBar vault selector (it remembers
+recent vaults). The desktop binary supports multiple windows,
+each on a different vault.
+
+## File watching
+
+httui watches the vault for external changes (e.g., `git pull`
+brought in new runbooks). When a file is modified outside the
+editor, a **conflict banner** appears at the top of the editor:
+
+> ⚠ `runbooks/foo.md` was modified externally.
+> [**Reload**] [Keep mine]
+
+Reload pulls the disk version into the editor. Keep mine
+overwrites disk on next save. Autosave is suppressed during
+conflict.
+
+## Vault path on disk
+
+The current vault path is shown in the TopBar (truncated middle).
+Click it for actions:
+
+- **Reveal in Finder / Explorer**
+- **Switch vault** → picker
+- **Settings** → vault-scoped settings
+
+The vault path is also exposed to **chat / MCP** as the `cwd` for
+any tool execution — so when you ask chat to "read the smoke test
+runbook", the MCP server resolves paths relative to the vault.
+
+## `.httui/workspace.toml`
+
+Stores this-machine UI state — open tabs, pane layout, last-active
+file. Format:
+
+```toml
+active_file = "runbooks/auth-flow.md"
+
+[panes]
+layout = "horizontal"
+ratio = 0.5
+
+[[panes.left.tabs]]
+file = "runbooks/auth-flow.md"
+
+[[panes.right.tabs]]
+file = "runbooks/smoke-staging.md"
+```
+
+Most teams commit this so a freshly-cloned vault opens at the same
+place. Add to `.gitignore` if you want each developer's layout to
+stay separate.
+
+## `notes.db` (SQLite)
+
+A regenerable cache at the vault root. Holds:
+
+- Block result cache (HTTP + DB responses, keyed by hash)
+- Run history (last 10 per `(file, alias)`)
+- Connection metadata + schema cache
+- FTS5 search index (rebuilt on vault switch)
+- Chat sessions + permission rules
+
+Deleting `notes.db` is safe — first run rebuilds everything from
+scratch. Use `make wipe-config` (during dev) to nuke it cleanly.
+
+## Multi-machine workflow
+
+The committed parts of a vault are designed to clone-and-run:
+
+```bash
+git clone git@github.com:acme/runbooks.git
+httui open ./runbooks
+```
+
+On first open in a new vault, httui scans for required secrets and
+shows a **"Resolve secrets" banner** listing missing keychain
+entries. Resolve them once → your machine's keychain populates → all
+runbooks work.
+
+Your `envs/staging.local.toml` (with your SSH tunnel hostname) is
+not in git; the teammate's machine has a different `.local.toml`
+pointing at their tunnel. Same runbook, two laptops, two tunnels.
+
+## Related
+
+- **[Quickstart](/docs/tutorials/quickstart#2-create-your-first-vault)** — creating a vault
+- **[Use environment variables](/docs/how-to/environments)** — `envs/*.toml` patterns
+- **[Store secrets](/docs/how-to/secrets)** — keychain integration
+- **[Config files](/docs/reference/config-files)** — full TOML schemas

@@ -24,7 +24,7 @@ layouts, not public version numbers.)
 | Before (MVP) | After (v1) |
 |---|---|
 | Connections in `notes.db` `connections` table | `connections.toml` at the vault root |
-| Environments + variables in `notes.db` `environments` / `env_variables` | `envs/<name>.toml` per environment |
+| Environments + variables in `notes.db` `environments` / `env_variables` | `envs/&lt;name&gt;.toml` per environment |
 | Connection passwords + secret variables stored in OS keychain (already), referenced by sentinel `__KEYCHAIN__` in SQLite | Same OS keychain, referenced by `{{keychain:…}}` markers in TOML |
 | UI prefs (`theme`, `auto_save_ms`, `editor_font_size`, `default_fetch_size`, `history_retention`, `vim_enabled`, `sidebar_open`) in `app_config` table | `~/.config/httui/user.toml` `[ui]` section (XDG on Linux; OS-native config dir elsewhere) |
 | Session state (`vaults`, `active_vault`, `pane_layout`, …) in `app_config` | **Stays in `app_config`** — session state is per-machine ephemeral; it never leaves SQLite (audit-001) |

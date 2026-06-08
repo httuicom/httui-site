@@ -1,0 +1,208 @@
+---
+title: Zed
+description: Agrega httui-lang a Zed vía la extensión oficial — tree-sitter + LSP en una sola instalación.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Zed bundlea tree-sitter nativamente y tiene una story limpia de
+extensión LSP. La **extensión httui-lang para Zed** wirea ambos.
+
+## Install
+
+<Steps>
+1. Abre Zed.
+2. `Cmd+Shift+X` → panel de Extensions.
+3. Busca **"httui"**.
+4. Instala **httui-lang**.
+</Steps>
+
+La extensión auto-instala el parser de tree-sitter + descarga el
+binario `httui-lsp` en el primer uso.
+
+## Config
+
+Zed lee `.zed/settings.json` por proyecto (tu vault) y
+`~/.config/zed/settings.json` globalmente.
+
+```json
+{
+  "lsp": {
+    "httui-lsp": {
+      "binary": {
+        "path": "httui-lsp",
+        "arguments": []
+      },
+      "settings": {
+        "httui": {
+          "env": "staging"
+        }
+      }
+    }
+  },
+  "languages": {
+    "httui": {
+      "tab_size": 2,
+      "format_on_save": "off",
+      "formatter": "language_server"
+    }
+  }
+}
+```
+
+## Detección de archivo
+
+La extensión registra:
+
+- `*.httui` → lenguaje `httui`
+- `*.md` → markdown (httui inyecta en bloques fenced de código)
+
+Para que la injection en markdown funcione, Zed necesita la
+gramática de markdown de tree-sitter (built-in) + las queries de
+injection de httui (shipean con la extensión). Sin config extra.
+
+## Features
+
+| Feature | Cómo usarla |
+|---|---|
+| Syntax highlight | Automático al abrir archivo |
+| Hover | Mouse sobre `{{ref}}` (default `K` en modo vim de Zed) |
+| Go to definition | `F12` / `Cmd+Click` |
+| Find references | `Shift+F12` |
+| Rename | `F2` |
+| Code actions | `Cmd+.` |
+| Format document | `Cmd+Shift+I` |
+| Workspace symbols | `Cmd+T` |
+
+## Entorno activo
+
+Setea por-vault en `.zed/settings.json`:
+
+```json
+{
+  "lsp": {
+    "httui-lsp": {
+      "settings": { "httui": { "env": "staging" } }
+    }
+  }
+}
+```
+
+O globalmente si trabajas mayormente en un env. Para cambiar al
+vuelo:
+
+`Cmd+Shift+P` → **"httui: Set active environment"**.
+
+## Run code lens
+
+Si la desktop app de httui está corriendo en el mismo vault, Zed
+muestra un lens **"Run"** arriba de cada bloque. Haz clic → el LSP
+envía `httui/blockRun` al desktop, que ejecuta y devuelve el
+resultado inline (renderizado en un panel chico debajo del bloque
+vía la UI inline de Zed).
+
+Sin el desktop corriendo, el lens muestra "**Run in TUI →**" —
+hacer clic abre un split de terminal con `httui-tui run <file>`.
+
+## Theming
+
+httui-lang shipea con mappings de tokens que respetan los temas de
+Zed:
+
+| Nodo httui | Token Zed (default) |
+|---|---|
+| `(verb)` | `keyword` |
+| `(alias_ref ident)` | `function` |
+| `(env_ref ident)` | `constant` |
+| `(field) @assertion` | `variable.special` |
+| `(literal) @assertion` | `string` |
+| `(reference)` (whole) | `embedded` |
+
+Los temas custom levantan estos automáticamente. Para sobreescribir,
+en `settings.json`:
+
+```json
+{
+  "experimental.theme_overrides": {
+    "syntax": {
+      "function": { "color": "#84B5FF" },
+      "constant": { "color": "#FFCC66" }
+    }
+  }
+}
+```
+
+## Snippets
+
+Zed lee `.zed/snippets/httui.json` por-proyecto:
+
+```json
+{
+  "HTTP block": {
+    "prefix": "http",
+    "body": [
+      "http alias=$1",
+      "${2:GET} ${3:https://example.com/path}",
+      "${4:Accept: application/json}",
+      "$0"
+    ]
+  },
+  "HTTP with expect": {
+    "prefix": "httpexpect",
+    "body": [
+      "http alias=$1",
+      "${2:GET} ${3:https://example.com/path}",
+      "",
+      "# expect:",
+      "#   status == 200",
+      "$0"
+    ]
+  },
+  "DB block": {
+    "prefix": "db",
+    "body": [
+      "db-${1:local}",
+      "SELECT $0"
+    ]
+  }
+}
+```
+
+## Troubleshooting
+
+### La extensión no instaló el binario del LSP
+
+La extensión descarga `httui-lsp` desde GitHub Releases en el
+primer uso. Si está offline / bloqueado:
+
+```bash
+cargo install httui-lsp
+```
+
+Luego setea el path explícitamente:
+
+```json
+{ "lsp": { "httui-lsp": { "binary": { "path": "/Users/you/.cargo/bin/httui-lsp" } } } }
+```
+
+### Injection en markdown no funciona
+
+Revisa el tree-sitter playground de Zed:
+
+`Cmd+Shift+P` → **"editor: open tree-sitter playground"**.
+
+Abre un runbook `.md` con fences de httui. El tree debería mostrar
+las regiones `http` / `db-*` parseadas por `httui`. Si no,
+reinstala la extensión.
+
+### El LSP no levanta cambios de env
+
+Recarga el LSP:
+
+`Cmd+Shift+P` → **"editor: restart language server"**.
+
+## Relacionado
+
+- **[Capacidades del LSP](/es/docs/httui-lang/lsp)** — qué provee el server
+- **[Gramática tree-sitter](/es/docs/httui-lang/tree-sitter)** — tipos de nodo
+- **[Setup de Helix](/es/docs/httui-lang/editors/helix)** — story similar

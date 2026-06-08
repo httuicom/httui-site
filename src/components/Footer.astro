@@ -1,7 +1,6 @@
 ---
 import { css } from "../../styled-system/css";
 import Logo from "./Logo.astro";
-import { ThemeToggle } from "./ThemeToggle";
 import { repoUrl, stats, docsHref } from "../lib/i18n";
 
 interface Props {
@@ -23,10 +22,10 @@ const copy = {
         { t: "Changelog", href: `${blob}/CHANGELOG.md` },
       ]},
       { h: "Docs", l: [
-        { t: "Getting started", href: `${docsBase}/getting-started` },
-        { t: "Concepts", href: `${docsBase}` },
-        { t: "Blocks", href: `${docsBase}` },
-        { t: "httui-lang", href: `${docsBase}` },
+        { t: "Quickstart", href: `${docsBase}/tutorials/quickstart` },
+        { t: "How-to guides", href: `${docsBase}/how-to/environments` },
+        { t: "Reference", href: `${docsBase}/reference/http-block` },
+        { t: "Architecture", href: `${docsBase}/architecture` },
       ]},
       { h: "Community", l: [
         { t: "GitHub", href: repoUrl },
@@ -49,10 +48,10 @@ const copy = {
         { t: "Novidades", href: `${blob}/CHANGELOG.md` },
       ]},
       { h: "Docs", l: [
-        { t: "Primeiros passos", href: `${docsBase}/getting-started` },
-        { t: "Conceitos", href: `${docsBase}` },
-        { t: "Blocos", href: `${docsBase}` },
-        { t: "httui-lang", href: `${docsBase}` },
+        { t: "Quickstart", href: `${docsBase}/tutorials/quickstart` },
+        { t: "Guias práticos", href: `${docsBase}/how-to/environments` },
+        { t: "Referência", href: `${docsBase}/reference/http-block` },
+        { t: "Arquitetura", href: `${docsBase}/architecture` },
       ]},
       { h: "Comunidade", l: [
         { t: "GitHub", href: repoUrl },
@@ -75,10 +74,10 @@ const copy = {
         { t: "Cambios", href: `${blob}/CHANGELOG.md` },
       ]},
       { h: "Docs", l: [
-        { t: "Primeros pasos", href: `${docsBase}/getting-started` },
-        { t: "Conceptos", href: `${docsBase}` },
-        { t: "Bloques", href: `${docsBase}` },
-        { t: "httui-lang", href: `${docsBase}` },
+        { t: "Quickstart", href: `${docsBase}/tutorials/quickstart` },
+        { t: "Guías prácticas", href: `${docsBase}/how-to/environments` },
+        { t: "Referencia", href: `${docsBase}/reference/http-block` },
+        { t: "Arquitectura", href: `${docsBase}/architecture` },
       ]},
       { h: "Comunidad", l: [
         { t: "GitHub", href: repoUrl },
@@ -99,7 +98,7 @@ const footer = css({
   pt: "14",
   pb: "9",
   bg: "bg.surface",
-  borderTop: "1px solid",
+  borderTopWidth: "1px",
   borderColor: "border",
   fontSize: "xs",
   color: "fg.muted",
@@ -141,7 +140,7 @@ const link = css({
 const bar = css({
   mt: "10",
   pt: "4.5",
-  borderTop: "1px solid",
+  borderTopWidth: "1px",
   borderColor: "border",
   display: "flex",
   justifyContent: "space-between",
@@ -154,6 +153,25 @@ const barRight = css({
   display: "flex",
   alignItems: "center",
   gap: "3",
+});
+const toggleBtn = css({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "1.5",
+  px: "2",
+  py: "1",
+  rounded: "full",
+  borderWidth: "1px",
+  borderColor: "border.subtle",
+  color: "fg.muted",
+  cursor: "pointer",
+  bg: "transparent",
+  transition: "color 0.15s, border-color 0.15s",
+  _hover: { color: "fg", borderColor: "border" },
+});
+const toggleText = css({
+  fontSize: "11px",
+  fontFamily: "mono",
 });
 ---
 
@@ -184,7 +202,32 @@ const barRight = css({
     <span>{t.copyright}</span>
     <div class={barRight}>
       <span>{t.made}</span>
-      <ThemeToggle client:idle />
+      <button type="button" id="theme-toggle" class={toggleBtn} aria-label="Toggle theme">
+        <svg data-theme-icon="dark" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <svg data-theme-icon="light" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <span class={toggleText} data-theme-label></span>
+      </button>
     </div>
   </div>
 </footer>
+
+<style is:global>
+  [data-theme-icon] { display: none; }
+  html[data-theme="dark"]  [data-theme-icon="dark"]  { display: inline-block; }
+  html[data-theme="light"] [data-theme-icon="light"] { display: inline-block; }
+</style>
+
+<script>
+  const btn = document.getElementById("theme-toggle");
+  const label = btn?.querySelector("[data-theme-label]") as HTMLElement | null;
+  const sync = () => {
+    if (label) label.textContent = document.documentElement.dataset.theme || "light";
+  };
+  sync();
+  btn?.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("theme", next);
+    sync();
+  });
+</script>

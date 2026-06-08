@@ -75,8 +75,8 @@ const section = css({
   px: { base: "6", md: "20" },
   py: { base: "16", md: "24" },
   bg: "bg.surface",
-  borderTop: "1px solid",
-  borderBottom: "1px solid",
+  borderTopWidth: "1px",
+  borderBottomWidth: "1px",
   borderColor: "border",
 });
 const header = css({
@@ -108,7 +108,7 @@ const terminal = css({
   mb: "7",
   rounded: "xl",
   overflow: "hidden",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "stone.500",
   bg: "stone.900",
   color: "paper.100",
@@ -121,7 +121,7 @@ const termHead = css({
   px: "3.5",
   py: "2.5",
   gap: "2",
-  borderBottom: "1px solid",
+  borderBottomWidth: "1px",
   borderColor: "stone.500",
 });
 const termTitle = css({
@@ -137,6 +137,12 @@ const termBody = css({
   lineHeight: "1.8",
 });
 const cmdPrompt = css({ color: "moss.300" });
+const termLineEcho = css({ color: "stone.200", fontSize: "13px" });
+const distroLines = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.5",
+});
 const distroGrid = css({
   maxW: "920px",
   mx: "auto",
@@ -147,7 +153,7 @@ const distroGrid = css({
 const distroCard = css({
   p: "3.5",
   bg: "bg",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "border",
   rounded: "md",
 });
@@ -197,7 +203,7 @@ const foot = css({
     </div>
     <div class={termBody}>
       {t.terminalLines.map((l) => (
-        <div>
+        <div class={l.cmd ? "" : termLineEcho}>
           {l.cmd ? <span class={cmdPrompt}>$</span> : null}
           {l.cmd ? " " : ""}
           {l.txt}
@@ -213,7 +219,7 @@ const foot = css({
           <span style="font-family:var(--fonts-mono)">{p.icon}</span>
           <span class={distroLabel}>{p.label}</span>
         </div>
-        <div>
+        <div class={distroLines}>
           {p.lines.map((line) => <div class={distroLine}>{line}</div>)}
         </div>
       </div>

@@ -1,0 +1,218 @@
+---
+title: Grammar tree-sitter
+description: O parser tree-sitter do httui-lang — tipos de node, highlight queries, integração com nvim-treesitter e outros.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`tree-sitter-httui` é o parser tree-sitter pro formato de bloco
+`.httui`. Ele alimenta syntax highlighting em qualquer editor que
+fala tree-sitter — Neovim, Helix, Zed, GitHub e o próprio app
+desktop.
+
+## Instalação
+
+### Via npm (tooling Node-based)
+
+```bash
+npm install tree-sitter-httui
+```
+
+### Via nvim-treesitter
+
+```vim
+:TSInstall httui
+```
+
+(Requer o parser registrado no `nvim-treesitter` — já tá upstream
+desde v0.x.)
+
+### Build manual
+
+```bash
+git clone https://github.com/httuicom/tree-sitter-httui
+cd tree-sitter-httui
+tree-sitter generate
+tree-sitter test
+```
+
+## Tipos de node
+
+A grammar produz esses tipos de node top-level:
+
+| Node | O que casa |
+|---|---|
+| `file` | Arquivo `.httui` inteiro — node raiz |
+| `block` | Um bloco fenced (fence + body + expect opcional) |
+| `fence_line` | O fence de abertura — linguagem + info tokens |
+| `language` | `http` ou `db-<conn>` |
+| `info_token` | Um par `key=value` na linha de fence |
+| `info_key`, `info_value` | partes do anterior |
+| `body` | Body do bloco (entre fence e close / próximo fence) |
+| `request_line` | Linha de verb HTTP + URL |
+| `verb` | `GET`, `POST`, etc |
+| `url` | A URL (pode conter nodes `reference`) |
+| `header` | Linha `Name: value` |
+| `header_name`, `header_value` | partes |
+| `message_body` | Bytes do body (qualquer content type) |
+| `sql_statement` | Uma statement SQL (blocos DB) |
+| `expect_section` | O bloco `# expect:` inteiro |
+| `assertion` | Uma linha de assertion |
+| `field`, `operator`, `literal` | partes de uma assertion |
+| `reference` | Expressão `{{...}}` |
+| `alias_ref`, `env_ref`, `prev_ref` | os três tipos de referência |
+| `ident` | identifier (nome de alias, key de env, etc) |
+| `comment` | Linha `# ...` (fora de expect-section) |
+
+## Highlight queries
+
+O `queries/highlights.scm` default mapeia tipos de node pra grupos
+de highlight:
+
+```scheme
+; Verbs e linguagem
+(verb) @keyword
+(language) @keyword.modifier
+
+; Identifiers em referências
+(alias_ref (ident) @function)
+(env_ref (ident) @constant)
+(prev_ref) @function.builtin
+
+; Info do fence
+(info_key) @attribute
+(info_value) @string
+
+; Headers
+(header_name) @property
+(header_value) @string
+
+; Assertions
+(field) @variable
+(operator) @operator
+(literal) @number
+
+; Comentários
+(comment) @comment
+```
+
+Editores podem sobrescrever pelo tema deles. O default shippa com
+`tree-sitter-httui` e é o que nvim-treesitter / Zed / Helix
+consomem out of the box.
+
+## Queries de fold (`queries/folds.scm`)
+
+```scheme
+(block) @fold
+(expect_section) @fold
+(message_body) @fold
+```
+
+Te deixa colapsar blocos inteiros em editores que respeitam folds
+tree-sitter.
+
+## Injections (`queries/injections.scm`)
+
+Quando o body é identificável, injeta o parser de linguagem certo:
+
+```scheme
+; Sintaxe SQL dentro de blocos DB
+((block
+  (fence_line (language) @lang)
+  (body) @injection.content)
+ (#match? @lang "^db-")
+ (#set! injection.language "sql"))
+
+; Sintaxe JSON dentro de bodies de mensagem HTTP quando Content-Type bate
+((block
+  (header (header_name) @hname (header_value) @hval)
+  (message_body) @injection.content)
+ (#eq? @hname "Content-Type")
+ (#match? @hval "application/json")
+ (#set! injection.language "json"))
+```
+
+Efeito: dentro de um bloco `db-pg-staging`, **highlighting SQL
+liga automaticamente**. Dentro de um bloco HTTP cujo
+`Content-Type: application/json`, **highlighting JSON no body**. O
+parser certo pra cada região sem switches manuais de modo.
+
+## Embedding dentro de markdown
+
+Pra runbooks `.md`, tree-sitter-markdown lida com o arquivo
+externo e **injeta tree-sitter-httui** pras regiões fenced com
+linguagens `http` / `db-*`:
+
+```scheme
+; No injections.scm do tree-sitter-markdown (httui shippa uma extensão)
+((fenced_code_block
+  (info_string (language) @lang)
+  (code_fence_content) @injection.content)
+ (#match? @lang "^(http|db-)")
+ (#set! injection.language "httui"))
+```
+
+Resultado: você ganha highlight httui-aware dentro de arquivos
+`.md` **sem mudar seu setup markdown** — só adicione o parser
+httui.
+
+## Syntax highlighting no GitHub
+
+O [Linguist](https://github.com/github-linguist/linguist) do
+GitHub reconhece arquivos `.httui` desde que a entrada de
+linguagem foi adicionada. Blocos fenced dentro de `.md` com `http`
+ou `db-*` ganham syntax highlight no viewer GitHub também —
+mesmos arquivos de query embarcados no Linguist.
+
+(Se seu repo ainda não mostra highlight httui no GitHub, garanta
+que os mapeamentos Linguist do seu repo incluem a linguagem;
+levante uma issue em `httuicom/tree-sitter-httui` pra ajuda.)
+
+## Performance
+
+A grammar é **incremental** — tree-sitter re-parseia só a região
+editada. Números práticos no editor do app desktop:
+
+- Arquivo `.httui` de 1k linhas: parse completo ~3 ms
+- Update incremental de keystroke único: ~0.2 ms
+- `.md` de 10k linhas com 20 blocos fenced httui: parse completo ~12 ms
+
+Highlight e folds derivam da árvore de parse — são efetivamente de
+graça por keystroke depois que a árvore atualiza.
+
+## Versionamento
+
+`tree-sitter-httui` segue a versão de linguagem do httui-lang:
+
+| Versão da linguagem | Versão da grammar | Compatibilidade |
+|---|---|---|
+| `0.x` | `0.x.y` | mudanças breaking possíveis — pin |
+| `1.0` | `1.0.0` | estável; `1.x.y` seguintes são backward-compatible |
+
+Pinne no plugin manager do seu editor (semver npm / lock de
+plugin-manager Neovim).
+
+## Contribuindo pra grammar
+
+Source: [`httuicom/tree-sitter-httui`](https://github.com/httuicom/tree-sitter-httui).
+
+```bash
+git clone https://github.com/httuicom/tree-sitter-httui
+cd tree-sitter-httui
+npm install
+tree-sitter generate     # rebuilda o parser
+tree-sitter test         # roda testes de snapshot
+tree-sitter parse <file> # testa em arquivo real
+```
+
+Testes vivem em `test/corpus/` — um `.txt` por caso, com a árvore
+de parse esperada. Features novas de linguagem pousam aqui
+primeiro.
+
+## Relacionado
+
+- **[Sintaxe](/pt-br/docs/httui-lang/syntax)** — a gramática formal
+  que o parser implementa
+- **[Setup Neovim](/pt-br/docs/httui-lang/editors/neovim)** — usa
+  tree-sitter-httui + LSP juntos
+- **[Setup Zed](/pt-br/docs/httui-lang/editors/zed)** — mesmo

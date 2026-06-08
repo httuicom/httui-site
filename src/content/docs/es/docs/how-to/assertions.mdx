@@ -1,0 +1,201 @@
+---
+title: Verifica la forma y el timing de una respuesta
+description: Convierte cualquier bloque en un smoke test con una sección `# expect:` — operadores, fields, comportamiento en falla.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Una sección `# expect:` convierte un bloque de "muéstrame lo que
+volvió" a "**falla el runbook si alguna de estas no es verdad**". Útil
+para smoke tests commiteados a git y ejecutados como step de CI, o
+para el chequeo local "¿drifteó staging desde ayer?".
+
+## Sintaxis
+
+Dentro de cualquier bloque (HTTP o DB), agrega una sección que
+empieza con `# expect:` en su propia línea. Cada línea abajo es una
+assertion: `<field> <operator> <value>`.
+
+````markdown
+```http
+GET {{BASE_URL}}/health
+
+# expect:
+#   status == 200
+#   time < 500ms
+#   body.status == "ok"
+#   body.version matches /^v\\d+\\.\\d+\\.\\d+$/
+```
+````
+
+Cualquier cosa después de `# expect:` hasta la fence de cierre (o una
+línea en blanco seguida de contenido non-#) se parsea como
+assertions.
+
+## Fields sobre los que puedes verificar
+
+Mismos fields que las [referencias entre bloques](/es/docs/how-to/references),
+más dos HTTP-only:
+
+| Field | Notas |
+|---|---|
+| `status` | HTTP status numérico |
+| `time` | total elapsed (en `ms` / `s`) |
+| `size` | bytes del response body |
+| `body.<path>` | JSON path |
+| `headers.<name>` | response header (case-insensitive) |
+| `cookies.<name>` | valor set-cookie |
+| `affected` | solo DB — count de filas INSERT/UPDATE/DELETE |
+| `row[N].<col>` | solo DB — columna de la n-ésima fila del resultado |
+| `rows.length` | solo DB — número de filas retornadas |
+
+## Operadores
+
+| Operador | Significado | Funciona en |
+|---|---|---|
+| `==` | igualdad estricta | strings, numbers, booleans, null |
+| `!=` | no igual | mismo |
+| `<` `<=` `>` `>=` | comparación numérica | numbers (incl. `time`, `size`) |
+| `contains` | substring o membership de array | strings, arrays |
+| `not contains` | inverso de contains | strings, arrays |
+| `matches` | match regex | strings (regex entre `/.../`) |
+| `exists` | el path resuelve (no necesita RHS) | cualquier field |
+| `not exists` | inverso | cualquier field |
+| `is` | check de tipo (`number`, `string`, `array`, `object`, `null`) | cualquier field |
+
+## Unidades de tiempo
+
+`time` y `size` aceptan sufijos:
+
+```
+time < 500ms
+time < 1.5s
+time < 1m
+size < 10kb
+size < 100mb
+```
+
+| Sufijo | Significado |
+|---|---|
+| `ms` | milisegundos |
+| `s` | segundos |
+| `m` | minutos (raro) |
+| `b` / `kb` / `mb` / `gb` | bytes (potencias de 1024) |
+
+Sin sufijo significa integer crudo (`time < 500` es `< 500ms` por
+default, ya que `time` está en ms; `size < 100` son bytes).
+
+## Assertions cross-block con referencias
+
+Las referencias funcionan dentro de `# expect:` como en cualquier
+otro lado:
+
+````markdown
+```http alias=cutoff
+GET {{BASE_URL}}/last-sync
+```
+
+```http
+GET {{BASE_URL}}/changes
+
+# expect:
+#   status == 200
+#   body.since == {{cutoff.body.timestamp}}
+#   body.changes.length > 0
+```
+````
+
+Útil para chequeos "¿la API estuvo de acuerdo con lo que fetcheamos
+la última vez?".
+
+## Comportamiento en falla
+
+Cuando alguna assertion falla:
+
+1. La toolbar del bloque se pone **roja**.
+2. El panel de resultado muestra el **expected vs actual** side by side:
+   ```
+   ✗ status == 200
+       expected: 200
+       actual:   503
+   ✓ time < 500ms (143ms)
+   ✗ body.status == "ok"
+       expected: "ok"
+       actual:   "degraded"
+   ```
+3. **Los bloques downstream no ejecutan** en un Run-all — httui hace
+   short-circuit en la primera falla.
+4. El count de pass/fail de la status bar se actualiza: `2 passed · 1 failed`.
+
+## Run-all y CI
+
+Presiona **`Cmd+Shift+Enter`** (o haz clic en **Run all** en la
+status bar) para ejecutar cada bloque de arriba abajo. El summary
+muestra total pass/fail a través de todas las secciones `# expect:`.
+
+Para CI, el binario `httui-tui` toma el mismo vault y puede ejecutar
+runbooks específicos:
+
+```bash
+httui-tui run runbooks/smoke-staging.md --env staging
+# exits 0 si todos los expects pasan, non-zero si alguno falló
+```
+
+Pipea a tu step de CI como cualquier otro comando de test.
+
+<Aside type="tip" title="Patrón de smoke test">
+  Ten un runbook por flujo crítico: `runbooks/smoke-payments.md`,
+  `runbooks/smoke-auth.md`, etc. Cada uno tiene unos bloques HTTP con
+  secciones `# expect:`. `httui-tui run runbooks/smoke-*.md --env prod`
+  en CI te da un snapshot de salud pass-or-fail en 5 segundos.
+</Aside>
+
+## Saltea una assertion temporalmente
+
+Coméntala con un `#` extra:
+
+```
+# expect:
+#   status == 200
+##   time < 500ms     ← skipped (flaky en cold cache)
+#   body.status == "ok"
+```
+
+El doble-`##` es la convención de httui de "ignora esta línea de
+expect". Mejor que borrar porque la intención se preserva.
+
+## Múltiples secciones expect
+
+Puedes tener más de una — se agregan:
+
+```http
+GET {{BASE_URL}}/users
+
+# expect:
+#   status == 200
+
+GET {{BASE_URL}}/users/admin
+
+# expect:
+#   status == 200
+#   body.role == "admin"
+```
+
+Cada `# expect:` aplica al bloque más reciente. Útil cuando el bloque
+tiene sub-pasos lógicos que quieres verificar separadamente.
+
+## Gotchas comunes
+
+| Síntoma | Causa | Fix |
+|---|---|---|
+| `body.X` exists check falla en null | `exists` devuelve false para fields de body null | Usa `body.X is null` para distinguir |
+| El regex no matchea | Olvidaste escapar `/` dentro del regex | `matches /^v\\d+\\/release$/` (escapa `/` como `\\/`) |
+| Time assertion siempre falla en el primer run | Cold connection / DNS lookup | El primer run baseline es más lento; considera `time < <p99-de-runs-típicos>` |
+| Header assertion case-mismatch | Los HTTP headers son case-insensitive — httui normaliza | `headers.content-type` y `headers.Content-Type` son lo mismo |
+
+## Relacionado
+
+- **[Construye un test de API encadenado](/es/docs/tutorials/chained-api)** —
+  ve `# expect:` en un flujo real.
+- **[Referencia valores entre bloques](/es/docs/how-to/references)** —
+  usa refs dentro de assertions para chequeos cross-block.

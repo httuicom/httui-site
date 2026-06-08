@@ -22,6 +22,8 @@
     "astro": "^6.4.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "rehype-mermaid": "^3.0.0",
+    "remark-gfm": "^4.0.1",
     "sharp": "^0.34.5"
   },
   "devDependencies": {

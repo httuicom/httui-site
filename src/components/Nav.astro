@@ -2,15 +2,13 @@
 import { css } from "../../styled-system/css";
 import Logo from "./Logo.astro";
 import Pill from "./Pill.astro";
-import { ThemeToggle } from "./ThemeToggle";
+import { stats, repoUrl } from "../lib/i18n";
 
 interface Props {
   lang?: "en" | "pt-br" | "es";
 }
 
 const { lang = "en" } = Astro.props;
-
-const repoUrl = "https://github.com/httuicom/httui";
 
 const labels = {
   en: { install: "Install", docs: "Docs", changelog: "Changelog", github: "GitHub", cta: "View on GitHub" },
@@ -33,7 +31,7 @@ const wrap = css({
   top: 0,
   zIndex: 50,
   bg: "bg",
-  borderBottom: "1px solid",
+  borderBottomWidth: "1px",
   borderColor: "border.subtle",
 });
 const inner = css({
@@ -68,6 +66,14 @@ const right = css({
   alignItems: "center",
   gap: "3",
 });
+const starsBlock = css({
+  display: { base: "none", md: "flex" },
+  alignItems: "center",
+  gap: "1",
+  fontSize: "12px",
+  fontWeight: "500",
+  color: "fg.muted",
+});
 ---
 
 <nav class={wrap}>
@@ -85,7 +91,10 @@ const right = css({
       ))}
     </div>
     <div class={right}>
-      <ThemeToggle client:idle />
+      <span class={starsBlock}>
+        <span aria-hidden="true">★</span>
+        <span>{stats.stars}</span>
+      </span>
       <Pill variant="ink" size="sm" href={repoUrl}>
         {t.cta} <span aria-hidden="true">→</span>
       </Pill>

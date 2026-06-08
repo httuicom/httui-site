@@ -1,0 +1,123 @@
+---
+import { css } from "../../../styled-system/css";
+
+type Kind = "ctx" | "del" | "add" | "hunk";
+type Line = [string, string, Kind];
+
+const lines: Line[] = [
+  ["@@", "-42,7 +42,11 @@  ## 3. Verify latency", "hunk"],
+  [" ", "", "ctx"],
+  ["-", "```http GET {{api}}/v2/health", "del"],
+  ["-", "expect: status === 200", "del"],
+  ["-", "```", "del"],
+  [" ", "", "ctx"],
+  ["+", "```http POST {{api}}/v2/payments", "add"],
+  ["+", "Authorization: Bearer {{user_token}}", "add"],
+  ["+", "Content-Type: application/json", "add"],
+  ["+", "", "add"],
+  ["+", '{ "amount": 1200, "currency": "BRL" }', "add"],
+  ["+", "", "add"],
+  ["+", "expect: status === 201", "add"],
+  ["+", "expect: time < 500ms", "add"],
+  ["+", "capture: payment_id = $.id", "add"],
+  ["+", "```", "add"],
+];
+
+const colorVarFor: Record<Kind, string> = {
+  add: "var(--colors-ok)",
+  del: "var(--colors-err)",
+  hunk: "var(--colors-info)",
+  ctx: "var(--colors-fg-subtle)",
+};
+const bgFor: Record<Kind, string> = {
+  add: "color-mix(in oklch, var(--colors-ok) 14%, transparent)",
+  del: "color-mix(in oklch, var(--colors-err) 14%, transparent)",
+  hunk: "color-mix(in oklch, var(--colors-info) 10%, transparent)",
+  ctx: "transparent",
+};
+const txtColorFor: Record<Kind, string> = {
+  add: "var(--colors-fg)",
+  del: "var(--colors-fg-muted)",
+  hunk: "var(--colors-info)",
+  ctx: "var(--colors-fg-muted)",
+};
+
+const wrap = css({
+  bg: "bg.surface",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "lg",
+  p: "4",
+  fontFamily: "mono",
+  fontSize: "xs",
+  boxShadow: "card",
+});
+const head = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+  fontSize: "11px",
+  color: "fg.muted",
+  pb: "2.5",
+  mb: "3",
+  borderBottomWidth: "1px",
+  borderColor: "border.subtle",
+});
+const branch = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  color: "fg",
+  fontWeight: "600",
+});
+const dot = css({ color: "fg.subtle" });
+const flex1 = css({ flex: "1" });
+const stats = css({
+  color: "accent.emphasized",
+  fontWeight: "600",
+});
+const body = css({
+  fontFamily: "mono",
+  fontSize: "11px",
+  lineHeight: "1.7",
+});
+const lineRow = css({
+  display: "grid",
+  gridTemplateColumns: "20px 1fr",
+  gap: "2",
+});
+const signCell = css({
+  textAlign: "center",
+  fontWeight: "700",
+});
+const lineText = css({
+  px: "1",
+});
+---
+
+<div class={wrap}>
+  <div class={head}>
+    <span class={branch}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+      <span>main</span>
+    </span>
+    <span class={dot}>·</span>
+    <span>3 changes · runbooks/payments/rollout-v2.3.md</span>
+    <span class={flex1}></span>
+    <span class={stats}>+18 −4</span>
+  </div>
+  <div class={body}>
+    {lines.map(([sign, line, kind]) => (
+      <div class={lineRow}>
+        <span
+          class={signCell}
+          style={`color:${colorVarFor[kind]};background:${kind === "hunk" ? bgFor[kind] : "transparent"};`}
+        >{sign}</span>
+        <span
+          class={lineText}
+          style={`color:${txtColorFor[kind]};font-style:${kind === "hunk" ? "italic" : "normal"};background:${bgFor[kind]};text-decoration:${kind === "del" ? "line-through" : "none"};text-decoration-color:var(--colors-fg-subtle);`}
+        >{line || " "}</span>
+      </div>
+    ))}
+  </div>
+</div>

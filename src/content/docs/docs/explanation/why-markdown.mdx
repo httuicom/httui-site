@@ -1,0 +1,161 @@
+---
+title: Why markdown?
+description: Why httui stores runbooks as plain .md files instead of a proprietary JSON collection format.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Every API testing tool faces the same decision: how do you store the
+collection of requests? Postman picked JSON, Insomnia picked YAML,
+JetBrains picked a custom `.http` format, Bruno picked their own
+DSL. httui picked **plain markdown**. This page explains why.
+
+## What markdown gets you for free
+
+| Property | What it means in practice |
+|---|---|
+| **Readable in any editor** | Open the runbook in vim, VS Code, GitHub, Obsidian, Notion — it renders. No app dependency to *read* the spec. |
+| **Diffable in git** | Pull request review for runbooks. Side-by-side comparison. Code-review the API spec. |
+| **Searchable everywhere** | `grep`, `rg`, GitHub code search, Spotlight, Obsidian — your runbooks are findable without an indexing service. |
+| **Prose-and-code native** | Markdown was designed for "explanation + code". Headings, lists, links, blockquotes — all natural ways to document around the requests. |
+| **Renders on GitHub** | Push the vault, browse it as a wiki on GitHub. The fenced code blocks (`http`, `db-*`) appear as code blocks with syntax highlighting — degraded but readable. |
+| **No format lock-in** | If httui dies, you still have `.md` files. The requests are HTTP-message text, the SQL is SQL. You can run them by hand. |
+
+## What the other tools chose
+
+### Postman: proprietary JSON
+
+A Postman collection is a JSON file with a deep tree of folders,
+requests, scripts, environments, pre-request scripts, tests.
+
+| Pro | Con |
+|---|---|
+| Rich GUI for editing | Unreadable as text — a 200-request collection is 50,000 lines of JSON |
+| Sharable via Postman cloud | Diffs are useless (JSON moves around per save) |
+| Pre/post scripts in JavaScript | Locked to the Postman runtime |
+| Workspaces, team accounts | Not your data — lives in Postman's cloud unless you self-host |
+
+### Insomnia: YAML / Insomnia Sync
+
+Similar shape to Postman. YAML is more readable than JSON but
+still tool-specific. Insomnia Sync moves the data to the cloud or
+a git repo of YAML.
+
+### JetBrains `.http` files
+
+JetBrains picked the right idea — **text-first**, one file per
+collection, requests written as HTTP messages:
+
+```http
+### Get user
+GET https://api.example.com/users/42
+Authorization: Bearer {{token}}
+```
+
+Pros: readable in any editor, lives in your codebase, runs inside
+IntelliJ. Cons: only IntelliJ executes it; no SQL story; no
+narrative-around-the-request story (everything is comments
+prefixed with `###` or `//`).
+
+### Bruno: `.bru` DSL
+
+Bruno is closer in spirit to httui — text-first, lives in git. Its
+chosen format is a custom DSL (`.bru` files). Still readable, still
+git-friendly. But it's a new format your editor doesn't know about,
+and there's no prose-around-code mode.
+
+## Why markdown specifically (not just "text")
+
+httui could have invented its own format like Bruno did. The bet on
+markdown is that the **narrative half** matters as much as the
+**executable half**. A runbook isn't a list of requests — it's an
+**explanation of a flow**, with the requests embedded in the
+explanation:
+
+```markdown
+# Refund a payment
+
+When a customer charges back, we need to:
+
+1. Find the original payment by external reference
+2. Verify it's in `captured` status (refunds against `pending` fail)
+3. Issue the refund
+
+## 1. Find the payment
+
+\`\`\`http alias=find
+GET {{API}}/payments?external_ref={{REF}}
+\`\`\`
+
+The response should contain exactly one payment...
+```
+
+In markdown, the structure (`#`, `##`, lists, paragraphs) is **part
+of the spec**, not metadata around a request. Open this file in any
+markdown viewer and you have a real document.
+
+In a `.http` file, that text would all be `### ` comments, lost on
+any non-JetBrains tool. In Postman, it'd be a "description" field
+nobody reads.
+
+## The cost: fenced-code conventions
+
+The price of markdown is that the executable bits live inside fenced
+code blocks with a special language:
+
+````markdown
+```http alias=login
+POST /auth/login
+```
+
+```db-staging
+SELECT * FROM users
+```
+````
+
+That syntax is **markdown-valid** — GitHub, Obsidian, etc, render
+it as a code block. httui's editor adds the runtime layer on top
+(toolbar, run button, response panel) without changing the
+underlying text.
+
+The convention is a small cost — you learn the fence languages once
+(`http`, `db-<conn>`, `diff`) and you're done. The payoff: any
+markdown tool can show your runbook.
+
+## What if I want Postman's GUI?
+
+The httui editor is **the GUI**. You don't write the HTTP message
+by hand if you don't want to — the **form mode toggle** in each
+HTTP block gives you Postman-style Params/Headers/Body tables. The
+toggle is round-trip safe: you edit in form, serialize as canonical
+HTTP-message, edit in raw, switch back to form — no loss.
+
+The difference: the data underneath is still a `.md` file you can
+read in vim.
+
+## What if I have a Postman collection today?
+
+There's an **import path** (planned, not shipped at the time of
+writing): point httui at a Postman JSON, get a `runbooks/` folder
+with one `.md` per request group + a `connections.toml` per
+environment. Imperfect (Postman's pre/post scripts don't map 1:1),
+but unblocks migration.
+
+## Summary
+
+| Choice | Why |
+|---|---|
+| Markdown over JSON | Readable as text, diffable in git, renders everywhere |
+| Markdown over YAML | Same benefits + native prose-around-code |
+| Markdown over `.http` | Same text-first benefit + the narrative half |
+| Markdown over Bruno's DSL | Same git-first benefit + every editor already knows the format |
+
+The bet: **runbook = doc + tool**, and the doc half is at least as
+important as the tool half. Markdown lets both halves be
+first-class.
+
+## Related
+
+- **[The mental model](/docs/explanation/mental-model)** — what a runbook *is*
+- **[Vault layout](/docs/reference/vault-layout)** — how runbooks live on disk
+- **[HTTP block](/docs/reference/http-block)** — the actual fence syntax

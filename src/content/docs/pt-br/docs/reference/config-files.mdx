@@ -1,0 +1,201 @@
+---
+title: Arquivos de configuração
+description: Schemas TOML completos pra connections.toml, envs/*.toml, user.toml e workspace.toml.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Toda config do httui é TOML puro. Essa página é a referência de
+schema pra cada arquivo.
+
+## `connections.toml` (raiz do vault, commitado)
+
+Uma tabela `[connections.<name>]` por conexão. O `<name>` é o
+sufixo nas linguagens de fence de bloco DB —
+`[connections.local]` torna `db-local` válido.
+
+### SQLite
+
+```toml
+[connections.local]
+type = "sqlite"
+path = "./scratch.sqlite"           # relativo à raiz do vault, ou absoluto
+```
+
+| Key | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `type` | string | sim | `"sqlite"` |
+| `path` | string | sim | Arquivo auto-criado na primeira execução |
+
+### PostgreSQL
+
+```toml
+[connections.pg-staging]
+type = "postgres"
+host = "pg-staging.acme.local"
+port = 5432
+database = "payments"
+user = "{{keychain:pg-staging:user}}"
+password = "{{keychain:pg-staging:password}}"
+ssl_mode = "require"
+search_path = ["public", "billing"]
+```
+
+| Key | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `type` | string | sim | `"postgres"` |
+| `host` | string | sim | Hostname ou IP |
+| `port` | int | não (default 5432) | |
+| `database` | string | sim | Nome do DB |
+| `user` | string | sim | Username; comumente `{{keychain:...}}` |
+| `password` | string | sim | Senha; comumente `{{keychain:...}}` |
+| `ssl_mode` | string | não (default `"prefer"`) | `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
+| `search_path` | string[] | não | `SET search_path = ...` em cada query |
+
+### MySQL
+
+```toml
+[connections.mysql-stage]
+type = "mysql"
+host = "mysql-stage.acme.local"
+port = 3306
+database = "billing"
+user = "{{keychain:mysql-stage:user}}"
+password = "{{keychain:mysql-stage:password}}"
+```
+
+| Key | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `type` | string | sim | `"mysql"` |
+| `host`, `port`, `database`, `user`, `password` | igual a postgres | |
+| `ssl_disabled` | bool | não | `true` pra pular SSL |
+
+### Referências de keychain
+
+`{{keychain:<scope>:<key>}}` resolve em runtime pra um valor
+guardado no keychain do SO sob `httui::<scope>::<key>`. Veja
+[Guarde secrets](/pt-br/docs/how-to/secrets) pro fluxo de setup.
+
+## `envs/<name>.toml` (raiz do vault, commitado)
+
+Um arquivo por ambiente. O nome do arquivo (menos `.toml`) é o
+nome do env visível no seletor da TopBar.
+
+```toml
+# envs/staging.toml
+[vars]
+BASE_URL = "https://staging-api.example.com"
+TIMEOUT_MS = 30000
+ADMIN_TOKEN = "__KEYCHAIN__"            # valor no keychain
+LOG_LEVEL = "info"
+
+[meta]
+description = "Ambiente de staging — aponta pro cluster acme-staging"
+color = "#f4be4f"                       # cor do pill da TopBar
+```
+
+| Seção | Obrigatória | Notas |
+|---|---|---|
+| `[vars]` | sim | Tabela flat key-value. Keys referenciadas como `{{KEY}}` (sem pontos) em qualquer bloco |
+| `[meta]` | não | Metadata opcional pra UI |
+| `[meta].description` | não | Tooltip no seletor de env |
+| `[meta].color` | não | Cor hex pro pill de env |
+
+### Valores secret
+
+Qualquer valor marcado secret na UI do Environment manager
+escreve `__KEYCHAIN__` como sentinela aqui. O valor real vive no
+keychain do SO sob `httui::env::<env-name>::<key>`.
+
+### Arquivo de override (`.local.toml`, gitignored)
+
+`envs/staging.local.toml` sobrescreve keys de `envs/staging.toml`:
+
+```toml
+# envs/staging.local.toml  (gitignored)
+[vars]
+BASE_URL = "http://localhost:15432"     # seu túnel SSH
+```
+
+Ordem de merge: `.toml` compartilhado primeiro, depois keys de
+`.local.toml` sobrescrevem. Overrides por máquina pra túneis e
+DBs de dev.
+
+## `user.toml` (raiz do vault, gitignored)
+
+Preferências de UI dessa máquina.
+
+```toml
+[ui]
+theme = "dark"                          # dark | light | auto
+vim_mode = false
+sidebar_width = 280
+chat_panel_open = false
+git_side_panel_open = true
+git_commit_template = "{{notes}}\\n\\n{{count}} files · {{date}}"
+
+[editor]
+font_size = 14
+font_family = "Geist Mono"
+tab_size = 2
+
+[chat]
+sidecar_path = "auto"                   # ou path absoluto
+default_cwd = "vault"                   # vault | last-used | <path>
+```
+
+A maioria das keys também é editável via painéis de Settings —
+`user.toml` é o backing persistido.
+
+## `.httui/workspace.toml` (raiz do vault, geralmente commitado)
+
+Estado do editor da última run. Veja
+[Layout do vault → workspace.toml](/pt-br/docs/reference/vault-layout#httuiworkspacetoml).
+
+```toml
+active_file = "runbooks/auth-flow.md"
+active_env = "staging"
+
+[panes]
+layout = "horizontal"
+ratio = 0.5
+
+[[panes.left.tabs]]
+file = "runbooks/auth-flow.md"
+
+[[panes.right.tabs]]
+file = "runbooks/db-checks.md"
+```
+
+## Convenções TOML que o httui segue
+
+- **Comentários** com `#` — preservados na leitura/escrita.
+- **Ordem** preservada — quando o httui reescreve um arquivo, ele
+  mantém seu layout a não ser que reformatação seja solicitada.
+- **Escape de string** — TOML padrão. Use `"""triple"""` pra
+  valores multi-linha (raro).
+- **Date/time** — formato datetime nativo do TOML
+  (`2026-06-06T14:30:00Z`).
+
+## Editar config pela UI vs editar à mão
+
+Ambos são first-class. Você pode:
+
+- Usar o Environment manager + form de Connection pra escrever
+  pela UI.
+- Editar à mão `connections.toml` em qualquer editor; o file
+  watcher do httui pega as mudanças e recarrega.
+
+Se os dois acontecerem ao mesmo tempo (write da UI + edit
+externo), você vai ganhar o
+[banner de conflito](/pt-br/docs/reference/vault-layout#file-watching) e
+escolhe qual versão ganha.
+
+## Erros comuns
+
+| Sintoma | Causa | Correção |
+|---|---|---|
+| "Connection X not found" num bloco `db-X` | `[connections.X]` faltando ou typo | Cheque `connections.toml`; recarregue via TopBar |
+| Env switcher mostra nada | Sem arquivos `envs/*.toml` | Crie um — até um `[vars]` vazio funciona |
+| `{{KEY}}` resolve literal | Env ativo não tem a key | Adicione em `envs/<active>.toml` ou override `.local.toml` |
+| Erro de parse de TOML no startup | Erro de sintaxe num config | Cheque o banner de erro; linha/coluna inclusas |

@@ -1,0 +1,190 @@
+---
+title: Guía de migración
+description: Pasar del layout legacy SQLite-only del MVP al layout file-backed v1 — connections, environments y prefs en TOML plano.
+---
+
+Esta guía es para usuarios que instalaron una **build MVP temprana** de
+httui (cuando la configuración vivía enteramente dentro de `notes.db`) y
+quieren moverse al **layout file-backed actual**, donde connections,
+environments y prefs por máquina viven en archivos TOML planos dentro
+del vault. ("MVP" y "v1" abajo son los nombres internos de esos dos
+layouts de almacenamiento, no números de versión públicos.)
+
+> **Status note (abril 2026).** La capa de storage v1 está en su lugar y
+> el tooling de migración descrito abajo está listo para shipear. Los
+> paneles de React todavía leen de las tablas SQLite legacy hasta que
+> aterrice el cutover del frontend. Hasta que ese cutover sea publicado,
+> el path de upgrade seguro es **inspect-only**: migra, revisa el TOML
+> generado, pero espera que la app en ejecución siga usando SQLite como
+> fuente de verdad.
+
+---
+
+## Qué cambia
+
+| Antes (MVP) | Después (v1) |
+|---|---|
+| Connections en la tabla `connections` de `notes.db` | `connections.toml` en la raíz del vault |
+| Environments + variables en `environments` / `env_variables` de `notes.db` | `envs/&lt;name&gt;.toml` por entorno |
+| Contraseñas de conexión + variables secretas guardadas en el OS keychain (ya), referenciadas por el sentinel `__KEYCHAIN__` en SQLite | Mismo OS keychain, referenciado por marcadores `{{keychain:…}}` en TOML |
+| Prefs de UI (`theme`, `auto_save_ms`, `editor_font_size`, `default_fetch_size`, `history_retention`, `vim_enabled`, `sidebar_open`) en la tabla `app_config` | Sección `[ui]` de `~/.config/httui/user.toml` (XDG en Linux; en otros, el directorio de config nativo del SO) |
+| Estado de sesión (`vaults`, `active_vault`, `pane_layout`, …) en `app_config` | **Se queda en `app_config`** — el estado de sesión es efímero por máquina; nunca sale de SQLite (audit-001) |
+| Historial de runs, schema cache, cache de resultados de bloques | **Se queda en SQLite** — son caches, intencionalmente no committed |
+
+El layout completo de destino está documentado en
+[Arquitectura → Estructura del vault](/es/docs/architecture#estructura-del-vault).
+
+## Antes de empezar
+
+1. **Cierra la app.** No corras la migración mientras httui está abierto —
+   la migración necesita un read exclusivo de `notes.db`.
+2. **Committea el vault.** La migración escribe nuevos archivos en la raíz
+   del vault; un working tree limpio hace el diff trivial de revisar.
+3. **Actualiza httui.** Instala la build actual sobre tu install viejo.
+   Tus datos quedan intactos hasta que dispares la migración.
+
+## Ejecutar la migración
+
+La migración se invoca desde dentro de la desktop app vía el comando
+Tauri `migrate_vault_to_v1`. Es **idempotente**: re-ejecutar es seguro.
+
+| Argumento | Significado |
+|---|---|
+| `vault_path` | Path absoluto del vault a migrar. Requerido. |
+| `dry_run` | `true` para walkear las tablas SQLite y reportar qué se escribiría, sin tocar ningún archivo. Pon esto primero para previsualizar. |
+
+Una corrida exitosa devuelve un `MigrationReport` con estos counters:
+
+| Field | Significado |
+|---|---|
+| `vault_path` | Vault que fue migrado |
+| `backup_path` | Donde se copió `notes.db` antes de cualquier write (típicamente `<vault>/notes.db.pre-v1-backup`). `null` en dry-run. |
+| `connections_migrated` / `connections_skipped` | Filas nuevas de `connections.toml` vs. duplicados ya presentes |
+| `environments_migrated` / `environments_skipped` | Archivos de env nuevos vs. duplicados |
+| `variables_migrated` / `variables_skipped` | Filas de env-var agregadas vs. duplicados |
+| `prefs_migrated` | Número de claves de prefs de UI copiadas a `user.toml` `[ui]` |
+| `dry_run` | Refleja el flag de input |
+| `notes` | Mensajes free-form — status del backup, warning de dual-storage, etc. |
+
+### Secuencia recomendada
+
+1. **Dry-run primero** con `dry_run = true`. Verifica que los counters
+   matcheen lo que esperas de la app MVP (cantidad de connections,
+   cantidad de environments, cantidad de variables).
+2. **Run for real** con `dry_run = false`. La migración:
+   - Copia `notes.db` → `notes.db.pre-v1-backup` (solo si la base de
+     datos existe; no-op en dry-run).
+   - Walkea las tablas `connections`, `environments`, `env_variables` y
+     las siete claves de prefs de UI en `app_config`, luego escribe los
+     archivos TOML correspondientes.
+   - Devuelve el reporte. Re-ejecutar en un vault ya poblado **no
+     duplica** entradas — los inserts duplicados se folden a los
+     counters `*_skipped`.
+3. **Inspecciona el diff.** `git status` debería mostrar archivos nuevos
+   en la raíz del vault: `connections.toml`, `envs/*.toml`. Verifica que
+   los valores matcheen tu setup MVP. Los secretos aparecen como
+   marcadores `{{keychain:…}}`, nunca como texto plano.
+4. **Committea.** La migración deliberadamente **no** auto-stagea. Agrega
+   solo después de haber verificado el diff tú mismo — esto evita
+   committear accidentalmente un secreto a medio cifrar si el backend del
+   keychain falló silenciosamente durante una corrida anterior.
+
+### Backups
+
+El primer non-dry-run produce `notes.db.pre-v1-backup` junto a
+`notes.db`. Las corridas posteriores sobreescriben ese backup (el
+contenido de SQLite no cambia de manera significativa — la migración es
+one-way). Si quieres una copia point-in-time congelada, tómala
+manualmente antes de la primera corrida.
+
+## Después de migrar
+
+Hasta que el cutover de frontend shipee, la app en ejecución sigue
+leyendo de las tablas SQLite legacy:
+
+- Los archivos TOML son válidos y la migración es la fuente de verdad
+  para v1.x en adelante, pero la UI de la app todavía no fue migrada.
+- Editar una conexión dentro de la app hoy todavía va a SQLite, no a
+  `connections.toml`. Los dos estados divergirán si sigues editando —
+  re-ejecuta la migración cuando quieras refrescar el lado TOML.
+- Después de que aterrice el cutover, las tablas SQLite legacy para
+  connections, environments y `env_variables` serán dropeadas y los
+  archivos TOML se convertirán en la única fuente de verdad. La
+  integración con el keychain no cambia a través del cutover.
+
+Las siete claves de prefs de UI (`theme`, `auto_save_ms`,
+`editor_font_size`, `default_fetch_size`, `history_retention`,
+`vim_enabled`, `sidebar_open`) ya son seguras de dropear de
+`app_config` — el schema bump hizo esto para installs nuevos; en
+vaults upgradeados las claves quedan inocuamente.
+
+## Secretos
+
+Las contraseñas de conexión y las variables de entorno secretas siguen
+viviendo en el OS keychain. La migración **no** re-cifra ni vuelve a
+preguntar:
+
+- Las contraseñas creadas en el MVP siguen en el keychain bajo el mismo
+  service/account usado por la build MVP. Los nuevos archivos TOML las
+  referencian con marcadores `{{keychain:…}}`; los lookups van por el
+  mismo crate `keyring`.
+- Si tu máquina alguna vez perdió acceso al keychain (ej. un login
+  keychain corrupto en macOS), el MVP cayó a texto plano. Después de
+  migrar, verás esos valores aparecer inline en el TOML — re-ingrésalos
+  a través de la app para empujarlos de vuelta al keychain.
+
+El setup de secretos en first-run sobre un vault recién clonado lo
+maneja el comando Tauri `first_run_missing_secrets`. El flujo:
+
+1. Abrir vault → la app escanea `connections.toml` + `envs/*.toml`
+   buscando marcadores `{{keychain:…}}` sin entrada correspondiente en
+   el keychain de esta máquina.
+2. Reporta la lista a la UI; el usuario ingresa los valores una vez.
+
+## Troubleshooting
+
+**La migración falla con "backup notes.db: Permission denied".** El
+proceso no puede escribir junto a `notes.db`. Verifica que la carpeta
+del vault sea writeable; en macOS, verifica también que la app tenga
+Full Disk Access o que el vault esté fuera de las zonas de quarantine
+`~/Library`/`~/Documents/...`.
+
+**Los counters dicen `0 migrated` aunque el MVP tenía data.** La
+migración leyó un `notes.db` vacío (probablemente se pasó el vault path
+equivocado). Re-checkea `vault_path`; el correcto es el directorio que
+contiene `notes.db` más tu carpeta `runbooks/`.
+
+**Re-ejecutar genera errores de duplicate-name en el reporte.**
+Comportamiento esperado — los duplicados se folden a los counters
+`*_skipped`; el reporte sigue creciendo a medida que agregas entradas
+nuevas a SQLite y re-ejecutas. No existe caso de colisión destructiva.
+
+**Algunos valores de env muestran `{{keychain:…}}` en `envs/*.toml`
+pero la app vuelve a preguntar por ellos.** O el keychain fue reseteado
+entre el install MVP y el install v1, o la build v1 corre como
+otro user/profile. Re-ingresa el secreto en la app una vez; la entrada
+nueva del keychain queda.
+
+**Quiero hacer rollback al storage del MVP.** Restaura `notes.db` desde
+`notes.db.pre-v1-backup` y borra los nuevos archivos TOML. La build MVP
+lee de `notes.db` exclusivamente; nada más necesita ser deshecho.
+
+## Compartir — sin modal de share
+
+Mockups anteriores mostraban un modal "Share" con snapshot links, live
+links, expiraciones y contraseñas generadas. httui no shipea **nada de
+eso**. Compartir un vault es compartir el repo git — clónalo, dale
+permisos a través de tu proveedor de hosting (GitHub, GitLab, …), y los
+secretos de cada colaborador se quedan en su máquina a través del flujo
+de keychain ya cubierto arriba. El panel de git expone "Copy repo URL",
+"Copy permalink at current commit" y "Open pull request" como acciones
+de un clic sobre el remote `origin` configurado.
+
+Ve [Conceptos → Sharing a vault](/es/docs/concepts#sharing-a-vault)
+para la imagen completa.
+
+## Referencia
+
+- [ADR 0001 — TOML schemas](https://github.com/httuicom/httui/blob/main/docs/adr/0001-toml-schemas.md)
+- [ADR 0002 — secret references](https://github.com/httuicom/httui/blob/main/docs/adr/0002-secret-references.md)
+- [ADR 0004 — local override mechanism](https://github.com/httuicom/httui/blob/main/docs/adr/0004-local-overrides.md)

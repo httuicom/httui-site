@@ -1,0 +1,163 @@
+---
+title: ¿Por qué markdown?
+description: Por qué httui guarda los runbooks como archivos .md planos en vez de un formato de colección JSON propietario.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Cada herramienta de testing de API enfrenta la misma decisión: ¿cómo
+guardas la colección de requests? Postman eligió JSON, Insomnia
+eligió YAML, JetBrains eligió un formato custom `.http`, Bruno
+eligió su propio DSL. httui eligió **markdown plano**. Esta página
+explica por qué.
+
+## Qué te da markdown gratis
+
+| Propiedad | Qué significa en la práctica |
+|---|---|
+| **Legible en cualquier editor** | Abre el runbook en vim, VS Code, GitHub, Obsidian, Notion — renderiza. Sin dependencia de app para *leer* la spec. |
+| **Diffeable en git** | Pull request review para runbooks. Comparación side-by-side. Code-review de la API spec. |
+| **Buscable en todos lados** | `grep`, `rg`, GitHub code search, Spotlight, Obsidian — tus runbooks son encontrables sin un servicio de indexación. |
+| **Prose-and-code nativo** | Markdown fue diseñado para "explicación + código". Headings, listas, links, blockquotes — todas formas naturales de documentar alrededor de las requests. |
+| **Renderiza en GitHub** | Pushea el vault, browseálo como un wiki en GitHub. Los bloques fenced (`http`, `db-*`) aparecen como bloques de código con syntax highlight — degradado pero legible. |
+| **Sin format lock-in** | Si httui muere, todavía tienes los archivos `.md`. Las requests son texto HTTP-message, el SQL es SQL. Puedes ejecutarlos a mano. |
+
+## Qué eligieron las otras herramientas
+
+### Postman: JSON propietario
+
+Una colección de Postman es un archivo JSON con un árbol profundo de
+carpetas, requests, scripts, environments, pre-request scripts,
+tests.
+
+| Pro | Con |
+|---|---|
+| GUI rica para edición | Ilegible como texto — una colección de 200 requests son 50,000 líneas de JSON |
+| Compartible vía cloud de Postman | Los diffs son inútiles (el JSON se mueve por save) |
+| Pre/post scripts en JavaScript | Locked al runtime de Postman |
+| Workspaces, cuentas de team | No es tu data — vive en la cloud de Postman a menos que self-hostees |
+
+### Insomnia: YAML / Insomnia Sync
+
+Shape similar a Postman. YAML es más legible que JSON pero sigue
+siendo tool-specific. Insomnia Sync mueve la data a la cloud o a un
+repo git de YAML.
+
+### Archivos `.http` de JetBrains
+
+JetBrains eligió la idea correcta — **text-first**, un archivo por
+colección, requests escritas como mensajes HTTP:
+
+```http
+### Get user
+GET https://api.example.com/users/42
+Authorization: Bearer {{token}}
+```
+
+Pros: legible en cualquier editor, vive en tu codebase, ejecuta
+dentro de IntelliJ. Cons: solo IntelliJ lo ejecuta; sin story de SQL;
+sin story de narrative-around-the-request (todo son comentarios
+prefijados con `###` o `//`).
+
+### Bruno: DSL `.bru`
+
+Bruno es más cercano en espíritu a httui — text-first, vive en git.
+Su formato elegido es un DSL custom (archivos `.bru`). Sigue siendo
+legible, sigue siendo git-friendly. Pero es un formato nuevo que tu
+editor no conoce, y no hay modo prose-around-code.
+
+## Por qué markdown específicamente (no solo "texto")
+
+httui podría haber inventado su propio formato como hizo Bruno. La
+apuesta por markdown es que la **mitad narrativa** importa tanto
+como la **mitad ejecutable**. Un runbook no es una lista de requests
+— es una **explicación de un flujo**, con las requests embebidas en
+la explicación:
+
+```markdown
+# Refund a payment
+
+Cuando un customer hace chargeback, necesitamos:
+
+1. Encontrar el payment original por external reference
+2. Verificar que esté en status `captured` (los refunds contra `pending` fallan)
+3. Emitir el refund
+
+## 1. Encontrar el payment
+
+\`\`\`http alias=find
+GET {{API}}/payments?external_ref={{REF}}
+\`\`\`
+
+La respuesta debería contener exactamente un payment...
+```
+
+En markdown, la estructura (`#`, `##`, listas, párrafos) es **parte
+de la spec**, no metadata alrededor de una request. Abre este
+archivo en cualquier markdown viewer y tienes un documento real.
+
+En un archivo `.http`, ese texto sería todo comentarios `### `,
+perdido en cualquier tool non-JetBrains. En Postman, sería un campo
+"description" que nadie lee.
+
+## El costo: convenciones de fenced-code
+
+El precio del markdown es que los bits ejecutables viven dentro de
+bloques fenced de código con un lenguaje especial:
+
+````markdown
+```http alias=login
+POST /auth/login
+```
+
+```db-staging
+SELECT * FROM users
+```
+````
+
+Esa sintaxis es **markdown-valid** — GitHub, Obsidian, etc, la
+renderizan como un bloque de código. El editor de httui agrega la
+capa de runtime encima (toolbar, run button, response panel) sin
+cambiar el texto subyacente.
+
+La convención es un costo chico — aprendes los lenguajes de fence
+una vez (`http`, `db-<conn>`, `diff`) y listo. El payoff: cualquier
+herramienta markdown puede mostrar tu runbook.
+
+## ¿Y si quiero la GUI de Postman?
+
+El editor de httui **es la GUI**. No escribes el mensaje HTTP a mano
+si no quieres — el **toggle de form mode** en cada bloque HTTP te da
+tablas Params/Headers/Body estilo Postman. El toggle es round-trip
+safe: editas en form, serializa como HTTP-message canónico, editas
+en raw, vuelves a form — sin pérdida.
+
+La diferencia: la data por debajo sigue siendo un archivo `.md` que
+puedes leer en vim.
+
+## ¿Y si hoy tengo una colección de Postman?
+
+Hay un **path de import** (planeado, no shippeado al momento de
+escribir esto): apunta httui a un JSON de Postman, obtén una carpeta
+`runbooks/` con un `.md` por grupo de requests + un `connections.toml`
+por entorno. Imperfecto (los pre/post scripts de Postman no mapean
+1:1), pero desbloquea la migración.
+
+## Resumen
+
+| Decisión | Por qué |
+|---|---|
+| Markdown sobre JSON | Legible como texto, diffeable en git, renderiza en todos lados |
+| Markdown sobre YAML | Mismos beneficios + prose-around-code nativo |
+| Markdown sobre `.http` | Mismo beneficio text-first + la mitad narrativa |
+| Markdown sobre el DSL de Bruno | Mismo beneficio git-first + cada editor ya conoce el formato |
+
+La apuesta: **runbook = doc + tool**, y la mitad doc es al menos tan
+importante como la mitad tool. Markdown deja ambas mitades ser
+first-class.
+
+## Relacionado
+
+- **[El modelo mental](/es/docs/explanation/mental-model)** — qué *es* un runbook
+- **[Estructura del vault](/es/docs/reference/vault-layout)** — cómo viven los runbooks en disco
+- **[Bloque HTTP](/es/docs/reference/http-block)** — la sintaxis real de la fence

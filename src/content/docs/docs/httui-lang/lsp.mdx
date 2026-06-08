@@ -1,0 +1,184 @@
+---
+title: LSP server
+description: What httui-lsp provides — completion, hover, definitions, diagnostics, code actions.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`httui-lsp` is a standalone language server implementing the
+Language Server Protocol. Embedded in the desktop app; installable
+as a binary for use with any LSP-aware editor.
+
+## Install standalone
+
+```bash
+cargo install httui-lsp
+```
+
+Or download a prebuilt binary from
+[Releases](https://github.com/httuicom/httui-lang/releases). The
+binary works on macOS / Linux / Windows.
+
+Verify:
+
+```bash
+httui-lsp --version
+httui-lsp --help
+```
+
+The server runs over stdio by default. Each editor's config tells
+it to spawn this binary; see per-editor pages.
+
+## Capabilities
+
+### Document open / change / save
+
+The server keeps an in-memory model of every open `.httui` file (or
+the relevant fences within an open `.md`). Incremental diffs apply
+as you type — no full re-parse per keystroke.
+
+### Completion (`textDocument/completion`)
+
+Triggered by `{{` and `.` after an alias-ref.
+
+| Context | Completions |
+|---|---|
+| `{{` (fresh) | Aliases above the cursor + env vars from the active env |
+| `{{alias.` | Field names (`body`, `status`, `headers`, etc) |
+| `{{alias.body.` | JSON paths if the alias has been run (from cached body shape) |
+| `{{alias.headers.` | Known header names from the last response |
+| `# expect: <field>` | Field names + operators |
+
+Items carry a `detail` field showing the resolved value (when
+known) so you don't have to hover separately.
+
+### Hover (`textDocument/hover`)
+
+Hover anywhere meaningful:
+
+| Hover target | Popup content |
+|---|---|
+| `{{ref}}` | Resolved value + source (alias / env var) + active env |
+| Alias on a fence line | Block summary — method + URL + last status |
+| `Authorization`, `Content-Type` etc | Standard MDN header doc summary |
+| Verb (`GET`, `POST`) | Standard HTTP method doc |
+| `{{ENV_KEY}}` (env-ref) | Value + which env / `.local.toml` it came from |
+
+### Go to definition (`textDocument/definition`)
+
+`Cmd+Click` (or `gd` in Neovim) on a reference jumps to:
+
+| Click target | Jumps to |
+|---|---|
+| `{{alias.X}}` | the fence line where `alias=alias` is declared |
+| `{{ENV_KEY}}` | the line in `envs/<active>.toml` that defines `ENV_KEY` |
+| `{{keychain:scope:key}}` | the connection-config line that references this keychain entry |
+
+### Find references (`textDocument/references`)
+
+Right-click an alias → "Find all references" — lists every block in
+the current file that reads from this alias. Useful before
+renaming.
+
+### Rename symbol (`textDocument/rename`)
+
+`F2` on an alias renames the alias **and every reference to it** in
+the file. Atomic — all-or-nothing.
+
+### Diagnostics (`textDocument/publishDiagnostics`)
+
+Errors and warnings published as you type:
+
+| Severity | Kinds |
+|---|---|
+| **Error** | Unknown alias, undefined env var, invalid HTTP verb, malformed reference, mutation in a known-readonly env |
+| **Warning** | Hard-coded URL (suggest extracting to env), missing alias on a block that's referenced elsewhere, time/size assertion on cold-cache block |
+| **Info** | "$prev` is fragile — consider naming the alias", unused alias |
+
+### Code actions (`textDocument/codeAction`)
+
+Quick fixes / refactors:
+
+| Action | What it does |
+|---|---|
+| "Extract URL to env var" | Replaces `https://api.x.com/y` with `{{API_URL}}/y` and adds the key to `envs/<env>.toml` |
+| "Add alias" | Adds `alias=<suggested>` to a block referenced from below |
+| "Convert to bind param" | (no-op — already does this; the lint flags raw interpolation patterns that pre-date a refactor) |
+| "Add expect for status 200" | Inserts a starter `# expect:` section |
+
+### Document formatting (`textDocument/formatting`)
+
+`Shift+Alt+F` (VS Code) / `=G` (vim) / `:format` (Helix) reformats:
+
+- Canonical fence info-string order (`alias → timeout → display → mode`)
+- Header lines aligned by `:`
+- Blank-line conventions normalised
+- Trailing whitespace stripped
+
+Formatting is **opt-in** — never runs automatically.
+
+### Workspace symbols (`workspace/symbol`)
+
+`Cmd+T` / `:lspsearchsym` lists every alias across every runbook in
+the vault — handy when you remember the alias but not which file.
+
+## Configuration
+
+The LSP reads vault config the same way the desktop app does:
+
+- `connections.toml` for connection definitions
+- `envs/<active>.toml` for env vars
+- `user.toml` for the active env
+
+Pick the active env by setting an LSP initialisation option:
+
+```json
+{
+  "httui": {
+    "vault": "/path/to/your/vault",
+    "env": "staging"
+  }
+}
+```
+
+Each editor passes this through its own LSP config (see per-editor
+pages).
+
+## Caching
+
+The LSP shares the `notes.db` cache with the desktop app **if both
+are open on the same vault**. Otherwise, the LSP maintains its own
+sub-cache for hover-value-from-last-run. The cache is
+**read-only** from the LSP — it never re-runs blocks (only the
+desktop app or `httui-tui run` writes).
+
+This is a deliberate choice: hovering `{{login.body.token}}` in VS
+Code should show the **last value the desktop saw**, not trigger a
+live request that could mutate state.
+
+## Server lifecycle
+
+Spawned on first `.httui` / `.md` open, stays alive while the
+editor session is open. Shuts down cleanly on `exit` notification.
+
+Logs to stderr (visible in the editor's "Output → httui-lsp"
+channel). Run with `--debug` for verbose tracing.
+
+## Protocol version
+
+LSP 3.17 with the following extensions:
+
+- `httui/blockRun` — request the desktop runtime to execute a block
+  (sent from the LSP when an editor user invokes a "Run" code lens,
+  if the desktop is running)
+- `httui/cacheInvalidate` — notify the LSP when a block's cache
+  changes (from a desktop run)
+
+These are best-effort — the LSP works fully without the desktop
+running; with it open, hover values stay live.
+
+## Related
+
+- **[Syntax](/docs/httui-lang/syntax)** — what the server parses
+- **[Tree-sitter](/docs/httui-lang/tree-sitter)** — what the editor uses for highlight
+- **[VS Code setup](/docs/httui-lang/editors/vscode)** — fastest LSP install

@@ -1,0 +1,194 @@
+---
+title: Referencias entre bloques
+description: Referencia completa de sintaxis para la expresión {{...}} — fields, paths, reglas de scoping, resolución.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+La expresión `{{...}}` resuelve en runtime dentro de bloques HTTP, DB
+y standalone. Esta página es la referencia de sintaxis completa. Para
+uso estilo how-to, ve
+[Referencia valores entre bloques](/es/docs/how-to/references).
+
+## Gramática
+
+```
+expression = "{{" reference "}}"
+reference  = alias-ref | env-ref | positional-ref
+alias-ref  = ALIAS "." FIELD ("." PATH)*
+env-ref    = KEY                              # sin puntos
+positional-ref = "$prev" ("." PATH)*
+
+FIELD = "body" | "status" | "headers" | "cookies" | "size" | "time"
+      | "row[" INT "]" | "rows" | "affected"
+
+PATH  = IDENTIFIER ("[" INT "]")* | "[" QUOTED "]"
+ALIAS = identifier (letras, dígitos, _, -)
+KEY   = SCREAMING_SNAKE_CASE (convención, no enforced)
+```
+
+## Fields disponibles en cada bloque
+
+| Field | Tipo | Fuente |
+|---|---|---|
+| `body` | JSON parseado (o fallback de texto) | response body HTTP / resultado de query DB |
+| `status` | número | HTTP status code (DB: siempre `200` en éxito) |
+| `headers.<name>` | string | response header HTTP (case-insensitive) |
+| `cookies.<name>` | string | valor `Set-Cookie` parseado |
+| `size` | número | bytes del response body |
+| `time` | número | total elapsed en ms |
+
+## Fields específicos de DB
+
+| Field | Tipo | Significado |
+|---|---|---|
+| `row[N]` | object | n-ésima fila del result set (0-indexed) |
+| `rows` | array | array completo de resultados |
+| `rows.length` | número | row count |
+| `affected` | número | row count de INSERT/UPDATE/DELETE |
+
+## Sintaxis de JSON path
+
+Después de `body.` o `row[N].`, drilea con `.` y `[N]`:
+
+| Path | Lee desde |
+|---|---|
+| `body.user.id` | `{ user: { id: 42 } }` → `42` |
+| `body.items[0].name` | `{ items: [{ name: "x" }] }` → `"x"` |
+| `body.tags[2]` | `{ tags: ["a", "b", "c"] }` → `"c"` |
+| `body["odd-key"]` | bracket-quoted para keys non-identifier |
+| `body['single quotes']` | también soportado |
+
+**No soportado:** wildcards (`body[*]`), filtros JSONPath
+(`body[?(@.id > 5)]`), recursive descent (`body..name`). Si los
+necesitas, encadena bloques en su lugar.
+
+## El alias posicional `$prev`
+
+`$prev` resuelve al **bloque ejecutado anterior por encima del
+actual en orden del documento**, con la respuesta como root
+implícito:
+
+| Escribes | Equivale a |
+|---|---|
+| `{{$prev.body.id}}` | `{{<previous-alias>.body.id}}` |
+| `{{$prev.status}}` | `{{<previous-alias>.status}}` |
+
+Útil para scripts puntuales rápidos. **Frágil** para runbooks
+commiteados — reordena bloques y `$prev` resuelve diferente.
+
+`$prev` NO aparece en el popover de autocomplete `{{` (by design,
+para desincentivar). Los tooltips de hover sí lo heredan.
+
+## Variables de entorno: `{{KEY}}` plano
+
+Las env refs **no tienen puntos** — son un lookup flat de string:
+
+```
+{{BASE_URL}}            ✓
+{{API_TOKEN}}           ✓
+{{BASE_URL.something}}  ✗ — tratado como alias-ref, no env-ref
+```
+
+Si `BASE_URL` es A LA VEZ una env var Y un alias de bloque, el
+**bloque gana**. Ve "Prioridad" abajo.
+
+## Donde resuelven las referencias
+
+| Block type | Posición | Notas |
+|---|---|---|
+| HTTP | URL path + query | Encoded si el valor contiene chars URL-special |
+| HTTP | Header keys | Debe resolver a un HTTP token válido (sin espacios) |
+| HTTP | Header values | Cualquier string |
+| HTTP | Body | Cualquier content type; resuelto antes de send |
+| DB | SQL body | **Convertido a bind parameter**, no interpolado |
+| Standalone | Block body | Depende del standalone block type |
+
+Las referencias NO resuelven en:
+
+- Tokens de info-string (`alias=...`, `timeout=...`, etc)
+- Comentarios dentro del body del bloque (líneas `#` en HTTP)
+- ¿Dentro de líneas `# expect:`? **Sí** — SÍ resuelven ahí (así
+  puedes verificar contra el valor de otro bloque)
+
+## Prioridad y scoping
+
+Al resolver `{{X}}`:
+
+1. **Alias de bloque** — busca un bloque arriba del actual con `alias=X`. Si lo encuentra, trátalo como alias-ref.
+2. **Env var** — busca `X` en el `[vars]` del entorno activo. Si lo encuentra, trátalo como env-ref.
+3. **Error** — no encontró ninguno; subraya rojo en el editor, falla con "unknown alias `X`" en run.
+
+Los aliases de bloque viven en **file scope** — las referencias solo
+pueden apuntar a bloques **anteriores en el mismo archivo `.md`**.
+Sin referencias cross-file.
+
+Las env vars viven en **vault scope** — mismo valor a través de todos
+los archivos bajo el entorno activo.
+
+## Orden de resolución en runtime
+
+Cuando disparas un bloque:
+
+1. Parsea todas las referencias `{{...}}` en el body, URL, headers del bloque.
+2. Construye el DAG de dependencias (solo alias-refs — las env-refs son flat).
+3. Para cada alias-ref upstream:
+   - Chequea el cache. Si hit, usa la respuesta cacheada.
+   - Si miss, ejecuta ese bloque (recursivo — puede tener sus propias deps).
+4. Sustituye todas las referencias con sus valores resueltos.
+5. Ejecuta el bloque actual.
+
+**Los ciclos son imposibles por construcción** — las referencias solo
+pueden apuntar hacia arriba en el archivo. Si reordenas bloques y
+creas una forward reference, el editor subraya rojo.
+
+## Cacheando bloques upstream
+
+Cuando `B` referencia `A`, ejecutar `B` puede ejecutar o no `A`:
+
+| Estado del cache | Comportamiento |
+|---|---|
+| `A` nunca ejecutado | Ejecuta `A`, luego `B` |
+| `A` cacheado, inputs sin cambios desde el último run | Usa `A` cacheado (instantáneo), luego `B` |
+| `A` cacheado, pero env o upstream-of-A cambió | Re-ejecuta `A`, luego `B` |
+| Bloque de mutación (POST/PUT/DELETE) | Siempre re-ejecuta, ignora cache |
+
+La cache key es `sha256(method + URL + headers + body + env snapshot
+solo de vars referenciadas)`. Cambiar una env var no referenciada no
+invalida.
+
+## Inspeccionando valores resueltos
+
+| Dónde | Cómo |
+|---|---|
+| En el editor | Hover `{{...}}` — popover muestra valor resuelto o error |
+| En el editor | `Ctrl+click` (o `Cmd+click`) — salta a la definición del alias |
+| Pre-run | Popover se actualiza en vivo a medida que el cache se llena |
+| Post-run | Tab **Raw** en el response panel muestra la request literal con refs sustituidas |
+| Per-block | Toolbar `⚙` → tab **References** — cada ref + valor actual |
+
+## Autocomplete de referencias
+
+Tipea `{{` en cualquier body de bloque → el popover muestra:
+
+- Todos los aliases arriba del bloque actual (con hint de tipo del body)
+- Todas las env vars del entorno activo
+
+Filtra tipeando. Tab para completar. `Esc` para cancelar.
+
+## Gotchas comunes
+
+| Síntoma | Causa | Fix |
+|---|---|---|
+| `path body.user.id not found` | La shape de la respuesta no matchea lo que escribiste | Revisa la respuesta real del bloque upstream en el tab **Body** |
+| La referencia resuelve a un valor viejo | Olvidaste re-ejecutar el bloque upstream | El cache invalida en cambio de input — generalmente auto |
+| Bracket key no parsed | `body[odd key]` sin comillas | Comíllalo: `body["odd key"]` |
+| `$prev` resuelve al bloque equivocado | Reordenaste bloques | Usa aliases nombrados para runbooks commiteados |
+| Env var resuelve literal | El env activo no tiene la key | Env selector de la TopBar + revisa `envs/<env>.toml` |
+| Alias de bloque resuelve pero querías env | Colisión de naming | Bloque gana; renombra alguno |
+
+## Relacionado
+
+- **[Referencia valores entre bloques](/es/docs/how-to/references)** — versión task-oriented de esta referencia
+- **[Bloque HTTP](/es/docs/reference/http-block)** + **[Bloque DB](/es/docs/reference/db-block)** — qué fields expone cada respuesta
+- **[Usa variables de entorno](/es/docs/how-to/environments)** — patrones de `{{KEY}}` plano

@@ -1,0 +1,237 @@
+---
+import { css } from "../../../styled-system/css";
+
+type TreeNode = {
+  n: string;
+  indent: number;
+  bold?: boolean;
+  active?: boolean;
+  count?: string;
+  key?: boolean;
+  link?: boolean;
+};
+
+const tree: TreeNode[] = [
+  { n: "▾ public", indent: 0, bold: true, count: "4 tables" },
+  { n: "▸ payments", indent: 1, count: "84.2k" },
+  { n: "▾ payments_route", indent: 1, count: "4.3k", active: true },
+  { n: "id  uuid", indent: 2, key: true },
+  { n: "provider_key  text", indent: 2, link: true },
+  { n: "tenant_id  uuid", indent: 2, link: true },
+  { n: "active  bool", indent: 2 },
+  { n: "created_at  timestamptz", indent: 2 },
+  { n: "▸ payment_provider", indent: 1, count: "12" },
+  { n: "▸ tenants", indent: 1, count: "284" },
+  { n: "▾ analytics", indent: 0, bold: true, count: "1 table" },
+  { n: "▸ events", indent: 1, count: "12.4M" },
+];
+
+const rows: string[][] = [
+  ["1", "rt_4f2a", "stripe_v2", "acme", "true", "2026-04-24 14:08"],
+  ["2", "rt_7ce1", "stripe_v2", "acme", "true", "2026-04-24 13:51"],
+  ["3", "rt_b08d", "adyen_v1", "acme", "false", "2026-04-23 09:12"],
+];
+
+const headers = ["#", "id", "provider_key", "tenant", "active", "created_at"];
+
+const wrap = css({
+  bg: "bg.surface",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "lg",
+  overflow: "hidden",
+  fontFamily: "mono",
+  fontSize: "xs",
+  boxShadow: "card",
+  minW: "640px",
+});
+const grid = css({
+  display: "grid",
+  gridTemplateColumns: "200px 1fr",
+  h: "380px",
+});
+
+const treeWrap = css({
+  bg: "bg.elevated",
+  borderRightWidth: "1px",
+  borderColor: "border",
+  py: "2.5",
+});
+const treeTitle = css({
+  px: "3",
+  pb: "1.5",
+  fontSize: "10px",
+  fontWeight: "700",
+  letterSpacing: "wide",
+  color: "fg.subtle",
+});
+
+const row = css({
+  display: "flex",
+  alignItems: "center",
+  h: "20px",
+  pr: "3",
+  gap: "1.5",
+  fontSize: "11px",
+});
+const rowText = css({
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+const rowCount = css({
+  fontSize: "10px",
+  color: "fg.subtle",
+});
+
+const colKey = css({
+  color: "warn",
+  display: "flex",
+  alignItems: "center",
+});
+const colLink = css({
+  color: "info",
+  display: "flex",
+  alignItems: "center",
+});
+
+const resultCol = css({
+  display: "flex",
+  flexDirection: "column",
+});
+const resultHead = css({
+  display: "flex",
+  alignItems: "center",
+  h: "32px",
+  px: "3",
+  bg: "bg.elevated",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+  fontSize: "11px",
+  gap: "2",
+});
+const okTxt = css({ color: "ok" });
+const dot = css({ color: "fg.subtle" });
+const labelStrong = css({ color: "fg", fontWeight: "600" });
+const flex1 = css({ flex: "1" });
+const accentTxt = css({ color: "accent.emphasized" });
+
+const table = css({
+  w: "100%",
+  borderCollapse: "collapse",
+});
+const th = css({
+  textAlign: "left",
+  fontWeight: "600",
+  fontSize: "10px",
+  px: "2.5",
+  py: "1.5",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+  color: "fg.muted",
+  bg: "bg.elevated",
+});
+const tdCell = css({
+  px: "2.5",
+  py: "1.5",
+  fontSize: "11px",
+  fontFamily: "mono",
+  color: "fg",
+});
+const tdFirst = css({
+  px: "2.5",
+  py: "1.5",
+  fontSize: "11px",
+  fontFamily: "mono",
+  color: "fg.subtle",
+});
+const tr = css({
+  borderBottomWidth: "1px",
+  borderColor: "border.subtle",
+});
+
+const explainBox = css({
+  px: "3",
+  py: "2.5",
+  borderTopWidth: "1px",
+  borderColor: "border",
+  bg: "bg.elevated",
+  fontSize: "10px",
+});
+const explainTitle = css({
+  color: "fg.subtle",
+  fontWeight: "700",
+  letterSpacing: "wide",
+  mb: "1",
+});
+const explainBody = css({
+  color: "fg.muted",
+  lineHeight: "1.7",
+});
+const explainStrong = css({ color: "fg" });
+---
+
+<div class={wrap}>
+  <div class={grid}>
+    {/* Schema tree */}
+    <div class={treeWrap}>
+      <div class={treeTitle}>SCHEMA · payments</div>
+      {tree.map((r) => (
+        <div
+          class={row}
+          style={`padding-left:${12 + r.indent * 14}px;font-weight:${r.bold || r.active ? 600 : 400};color:var(--colors-${r.bold || r.active ? "fg" : "fg-muted"});background:${r.active ? "var(--colors-bg-subtle)" : "transparent"};`}
+        >
+          {r.key && (
+            <span class={colKey}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18a4 4 0 0 1 4-4h2a4 4 0 0 1 0 8H6a4 4 0 0 1-4-4Z"/><path d="m14 14 8-8"/><path d="m18 10 2 2"/><circle cx="16.5" cy="7.5" r="1.5"/></svg>
+            </span>
+          )}
+          {r.link && (
+            <span class={colLink}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </span>
+          )}
+          <span class={rowText}>{r.n}</span>
+          {r.count && <span class={rowCount}>{r.count}</span>}
+        </div>
+      ))}
+    </div>
+
+    {/* Result */}
+    <div class={resultCol}>
+      <div class={resultHead}>
+        <span class={labelStrong}>Result</span>
+        <span class={dot}>·</span>
+        <span class={okTxt}>3 rows</span>
+        <span class={dot}>·</span>
+        <span>14ms</span>
+        <span class={flex1}></span>
+        <span class={accentTxt}>EXPLAIN</span>
+      </div>
+      <table class={table}>
+        <thead>
+          <tr>
+            {headers.map((label) => <th class={th}>{label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((rowData) => (
+            <tr class={tr}>
+              {rowData.map((cell, j) => (
+                <td class={j === 0 ? tdFirst : tdCell}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <span class={flex1}></span>
+      <div class={explainBox}>
+        <div class={explainTitle}>EXPLAIN ANALYZE</div>
+        <div class={explainBody}>
+          ↳ <span class={explainStrong}>Index Scan</span> using <span class={accentTxt}>idx_route_provider</span> · 0.42..18.7 · <span class={okTxt}>3 rows · 0.21ms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

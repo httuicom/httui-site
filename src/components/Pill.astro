@@ -16,7 +16,7 @@ const base = css({
   rounded: "full",
   fontWeight: "600",
   whiteSpace: "nowrap",
-  border: "1px solid",
+  borderWidth: "1px",
   cursor: "pointer",
   transition: "filter .12s ease, transform .12s ease",
   _hover: { filter: "brightness(1.05)" },
@@ -42,7 +42,7 @@ const variants = {
   ghost: css({
     bg: "color-mix(in oklch, var(--colors-bg) 60%, transparent)",
     color: "fg",
-    borderColor: "border.subtle",
+    borderColor: "color-mix(in oklch, var(--colors-border) 60%, transparent)",
     backdropFilter: "blur(10px)",
   }),
 };

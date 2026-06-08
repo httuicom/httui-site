@@ -42,8 +42,8 @@ const section = css({
   px: { base: "6", md: "16" },
   py: { base: "16", md: "24" },
   bg: "bg.surface",
-  borderTop: "1px solid",
-  borderBottom: "1px solid",
+  borderTopWidth: "1px",
+  borderBottomWidth: "1px",
   borderColor: "border",
 });
 const inner = css({
@@ -84,7 +84,7 @@ const chip = css({
   fontFamily: "mono",
   color: "fg",
   bg: "bg",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "border",
   rounded: "full",
 });
@@ -99,7 +99,7 @@ const codeCard = css({
   bg: "stone.900",
   color: "paper.100",
   rounded: "lg",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "stone.500",
   overflow: "hidden",
   fontFamily: "mono",
@@ -113,7 +113,7 @@ const codeHeader = css({
   gap: "2",
   px: "3.5",
   py: "2.5",
-  borderBottom: "1px solid",
+  borderBottomWidth: "1px",
   borderColor: "stone.500",
   fontSize: "11px",
   color: "stone.200",

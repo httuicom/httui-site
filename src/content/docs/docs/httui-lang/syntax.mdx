@@ -1,0 +1,260 @@
+---
+title: Syntax
+description: The formal grammar of .httui blocks — fence info-string, sections, body modes, references.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+This is the language reference for the `.httui` block format —
+what httui-lang parses, what httui-lsp validates, what the
+tree-sitter grammar lights up.
+
+## Top-level shape
+
+A `.httui` file is **a sequence of blocks**, separated by blank
+lines. Each block opens with a **fence line**, then has a **body**,
+optionally followed by an **expect section**.
+
+```
+<block> ::= <fence-line> NEWLINE
+            <body>
+            ( "# expect:" NEWLINE <expect-line>+ )?
+
+<fence-line> ::= ( "http" | "db-" CONN-NAME ) <info-token>*
+```
+
+A `.md` runbook embeds the same syntax inside fenced code blocks:
+
+````markdown
+```http alias=login
+POST {{BASE_URL}}/auth/login
+```
+````
+
+The opening ` ```http ` line plays the role of `<fence-line>`. The
+` ``` ` closing line ends the body. Tree-sitter handles both modes
+(standalone `.httui` and embedded `.md`).
+
+## Fence info-string
+
+After the language word (`http` or `db-<conn>`), additional tokens
+configure the block. Whitespace-separated `key=value` pairs.
+
+```
+http alias=login timeout=5000 display=split mode=raw
+^^^^ ^^^^^^^^^^^ ^^^^^^^^^^^^ ^^^^^^^^^^^^^ ^^^^^^^^
+lang alias       timeout      display       mode
+```
+
+| Token | Value type | Default | Meaning |
+|---|---|---|---|
+| `alias` | identifier | none | block name (required for chain) |
+| `timeout` | int (ms) | `30000` HTTP / `60000` DB | request timeout |
+| `display` | `input \| output \| split` | `split` | editor panel layout |
+| `mode` | `raw \| form` | `raw` | body editor mode (HTTP only) |
+| `connection` | string | — | DB only; alternative to `db-<name>` fence (rare) |
+
+**Canonical order** for serialisation: `alias → timeout → display
+→ mode`. The httui editor reformats to this order on save.
+
+### Identifiers
+
+`<alias>` and `<connection-name>` follow standard identifier rules:
+
+```
+ident ::= [a-zA-Z_] [a-zA-Z0-9_-]*
+```
+
+Letters, digits, underscores, hyphens. No spaces, no dots, no `$`.
+
+## Body
+
+What follows the fence line until the closing fence (or EOF in a
+`.httui` file).
+
+### HTTP body
+
+```
+HTTP-body ::= <request-line> NEWLINE
+              ( <header-line> NEWLINE )*
+              ( NEWLINE <message-body> )?
+```
+
+**Request line:**
+
+```
+GET https://api.example.com/users/{{id}}
+^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+verb URL (with {{ref}} interpolation)
+```
+
+Verb is one of `GET | POST | PUT | PATCH | DELETE | HEAD | OPTIONS`.
+URL is any string, including `{{ref}}` expressions, until end of line.
+
+**Headers:** standard HTTP header lines (`Name: value`). One per
+line. Values can contain `{{ref}}`.
+
+**Body:** anything after the first blank line, until the close. The
+`Content-Type` header tells the runtime how to parse it; the
+language doesn't care.
+
+### DB body
+
+```
+DB-body ::= <sql-statement> ( ";" <sql-statement> )*
+```
+
+Free-form SQL. Multi-statement allowed (separated by `;`). `{{ref}}`
+inside SQL is **converted to a bind parameter** by the runtime —
+the language parses it as a reference expression, but the executor
+never string-interpolates.
+
+## Expect sections
+
+After the body, an optional `# expect:` section turns the block
+into an assertion.
+
+```
+<expect-section> ::= "# expect:" NEWLINE
+                     ( "#" <assertion> NEWLINE )+
+
+<assertion> ::= <field> <operator> <literal>
+              | <field> "exists"
+              | <field> "not" "exists"
+              | <field> "is" <type-name>
+```
+
+### Fields
+
+| Field | Source |
+|---|---|
+| `status` | HTTP status |
+| `time` | total elapsed (ms unless suffixed) |
+| `size` | response body bytes |
+| `body.<path>` | JSON path into response body |
+| `headers.<name>` | response header (case-insensitive) |
+| `cookies.<name>` | set-cookie value |
+| `affected` (DB) | rows affected |
+| `row[N].<col>` (DB) | nth row column |
+| `rows.length` (DB) | row count |
+
+### Operators
+
+| Op | Meaning |
+|---|---|
+| `==`, `!=` | strict equality / inequality |
+| `<`, `<=`, `>`, `>=` | numeric comparison |
+| `contains`, `not contains` | string / array membership |
+| `matches` | regex `/.../` |
+| `exists`, `not exists` | path resolves |
+| `is` | type check |
+
+### Time and size suffixes
+
+```
+time < 500ms   time < 1.5s    time < 1m
+size < 10kb    size < 100mb
+```
+
+| Suffix | Means |
+|---|---|
+| `ms` `s` `m` | time |
+| `b` `kb` `mb` `gb` | bytes (powers of 1024) |
+
+## Reference expressions
+
+The `{{...}}` expression — fully detailed in
+**[Block references](/docs/reference/block-references)**, summary
+here.
+
+```
+<reference> ::= "{{" ( <alias-ref> | <env-ref> | <positional-ref> ) "}}"
+
+<alias-ref>      ::= IDENT "." <field> ( "." <path-segment> )*
+<env-ref>        ::= IDENT                          # no dots, looks up env vars
+<positional-ref> ::= "$prev" ( "." <path-segment> )*
+
+<path-segment>   ::= IDENT | "[" INT "]" | "[" QUOTED-STRING "]"
+```
+
+Resolution priority: **block alias > env var**. If both have the
+same name, the block wins.
+
+## Comments
+
+```
+# this is a comment
+```
+
+A `#` at the start of a line is a comment, **except** inside the
+expect section where `#` introduces assertions. The tree-sitter
+grammar distinguishes them by context.
+
+Inline comments (mid-line) are not supported. End-of-line `# foo`
+inside a URL is treated as part of the URL.
+
+## Whitespace and blank lines
+
+- Trailing whitespace on lines is ignored.
+- A blank line inside the body separates **headers from body** (HTTP).
+- A blank line between blocks separates **blocks** (in `.httui`
+  files).
+- In `.md` runbooks, the fence delimiters override blank-line rules
+  (the body of a fence is everything until the closing fence).
+
+## Reserved keywords (in fence info)
+
+These keys can't be used as `alias` values:
+
+```
+alias  timeout  display  mode  connection
+```
+
+Other identifiers are free.
+
+## Grammar EBNF (full)
+
+For tree-sitter and parser implementers — the full grammar:
+
+```ebnf
+file        ::= block ( BLANK-LINE+ block )*
+
+block       ::= fence-line NEWLINE body expect-section?
+
+fence-line  ::= ( "http" | "db-" ident ) info-token*
+info-token  ::= info-key "=" info-value
+info-key    ::= "alias" | "timeout" | "display" | "mode" | "connection"
+info-value  ::= ident | int | "raw" | "form" | "input" | "output" | "split"
+
+body        ::= http-body | db-body
+
+http-body   ::= request-line NEWLINE
+              ( header-line NEWLINE )*
+              ( BLANK-LINE message-body )?
+request-line::= verb SP url
+verb        ::= "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+
+db-body     ::= sql-statement ( ";" sql-statement )*
+
+expect-section ::= "# expect:" NEWLINE
+                 ( "#" SP assertion NEWLINE )+
+assertion   ::= field op literal
+              | field "exists"
+              | field "not" SP "exists"
+              | field "is" SP type-name
+
+reference   ::= "{{" ( alias-ref | env-ref | "$prev" path? ) "}}"
+alias-ref   ::= ident "." field-name path?
+env-ref     ::= ident
+path        ::= ( "." ident | "[" int "]" | "[" QUOTED "]" )+
+
+ident       ::= [a-zA-Z_] [a-zA-Z0-9_-]*
+```
+
+(Simplified — tree-sitter source is the canonical version.)
+
+## Related
+
+- **[LSP](/docs/httui-lang/lsp)** — what the server does with this grammar
+- **[Tree-sitter](/docs/httui-lang/tree-sitter)** — node types + highlight queries
+- **[Block references (full)](/docs/reference/block-references)** — `{{...}}` deep dive

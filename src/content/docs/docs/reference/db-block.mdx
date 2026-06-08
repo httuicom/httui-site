@@ -1,0 +1,223 @@
+---
+title: DB block
+description: Complete reference for SQL fenced blocks — drivers, mutation guard, EXPLAIN, result grid, bind parameters.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The DB block is a fenced markdown code block whose language is
+`db-<connection-name>`, where `<connection-name>` is a key from
+`connections.toml`. Each connection auto-registers its own block
+type.
+
+## Minimal example
+
+````markdown
+```db-local
+SELECT id, name FROM users LIMIT 10
+```
+````
+
+The fence language is `db-local` because there's a `[connections.local]`
+entry in `connections.toml`.
+
+## Supported drivers
+
+| Type | Connection string | Notes |
+|---|---|---|
+| `sqlite` | `path = "./file.sqlite"` | Auto-creates the file on first use |
+| `postgres` | `host`, `port`, `database`, `user`, `password`, `ssl_mode` | sqlx postgres driver |
+| `mysql` | `host`, `port`, `database`, `user`, `password` | sqlx mysql driver |
+
+See [config-files](/docs/reference/config-files) for the full
+`connections.toml` schema.
+
+## Info-string tokens
+
+| Token | Default | Notes |
+|---|---|---|
+| `alias=<name>` | none | Required for capture/chain (`{{users.row[0].id}}`). |
+| `timeout=<ms>` | `60000` | Query timeout in milliseconds. |
+| `display=<mode>` | `split` | Panel layout (same as HTTP). |
+
+The fence language **is** the connection — there's no separate
+`connection=` token.
+
+## Bind parameters (SQL safety)
+
+`{{...}}` references in SQL body are **always** converted to bind
+parameters. They are never string-interpolated.
+
+````markdown
+```db-local
+SELECT * FROM orders
+WHERE customer_id = {{user.body.id}}
+  AND status = {{filter.body.status}}
+```
+````
+
+What the driver sees:
+
+```sql
+SELECT * FROM orders
+WHERE customer_id = $1
+  AND status = $2
+```
+
+Bind values: `[user.body.id, filter.body.status]`.
+
+**Zero SQL injection surface.** Even with user-controlled values
+flowing in from HTTP responses, the driver's prepared-statement
+binding handles type coercion and escaping.
+
+<Aside type="caution" title="What can't be parameterised">
+  Bind parameters work for VALUES, not for identifiers. You can't
+  parameterise table names, column names, or dynamic `ORDER BY`
+  expressions. For those you'd need to inline (and accept the SQLi
+  risk if the value comes from user input).
+</Aside>
+
+## Mutation guard
+
+When a block contains `DELETE`, `UPDATE`, `INSERT`, `TRUNCATE`,
+`DROP`, or `ALTER`, httui shows a confirmation banner before
+running:
+
+> ⚠ This block contains `UPDATE`. Run anyway?
+
+The guard is **structural** — httui parses the SQL with a scanner,
+not a regex on the first word. So:
+
+- `UPDATE` inside a `--` comment is **not** flagged.
+- A `DELETE` buried after a `SELECT` in a multi-statement block
+  **is** flagged.
+
+Disable per-block via the toolbar gear → **Skip mutation prompt**
+(persisted per-block in the info-string). Best for runbooks you
+trust and run often.
+
+## Multi-statement blocks
+
+You can put multiple SQL statements in one block, separated by
+semicolons:
+
+````markdown
+```db-local
+CREATE TEMP TABLE staging AS SELECT * FROM users WHERE active = false;
+DELETE FROM staging WHERE created_at < unixepoch() - 30 * 86400;
+SELECT count(*) FROM staging;
+```
+````
+
+The mutation guard flags if **any** statement is destructive.
+Results come from the **last statement** only — the result grid
+shows the final `SELECT`'s rows.
+
+## Result panel
+
+The response panel has a **virtualised grid** for SELECT results:
+
+- Sortable column headers (click)
+- Type badge per column (`int`, `text`, `jsonb`, etc)
+- Copy-as-CSV button
+- Windowed rendering — 100k+ rows stay scrollable
+
+For mutation blocks (`INSERT`/`UPDATE`/`DELETE`), the panel shows
+"N rows affected" + the elapsed time.
+
+## Chained references
+
+The first row of every result is the implicit "response" — chain
+into it from later blocks:
+
+````markdown
+```db-local alias=users_list
+SELECT id, email FROM users ORDER BY id LIMIT 1
+```
+
+```http
+GET {{BASE_URL}}/users/{{users_list.row[0].id}}
+```
+````
+
+Available fields on a DB block response:
+
+| Field | Meaning |
+|---|---|
+| `row[N].<col>` | nth row's column value |
+| `rows` | full result array (rare to chain on) |
+| `rows.length` | number of rows |
+| `affected` | rows affected by mutation |
+
+## EXPLAIN
+
+Run any `EXPLAIN ANALYZE` (Postgres / MySQL) or `EXPLAIN QUERY PLAN`
+(SQLite) and the panel renders the plan as a **tree view**:
+
+- Sequential scans with high cost are highlighted red
+- Nested-loop joins with bad cardinality estimates are flagged
+- Right-click any node → **Copy as TEXT** for sharing
+
+## Session override (host/port)
+
+For connections where you need to SSH-tunnel locally but the shared
+`connections.toml` points at the production hostname, use the
+toolbar **`⚙ Session override`** dialog:
+
+```
+host: 127.0.0.1
+port: 15432
+```
+
+Override is **session-only** — not persisted to disk, applied per
+DB run. Base connection pool is untouched; httui creates an
+override-keyed pool for the override session. Useful for one-off
+tunnel work without editing `.local.toml`.
+
+## Cache
+
+Same SHA-256 hash as HTTP blocks:
+
+```
+SQL text (after bind substitution) + bind values
+  + env snapshot (only referenced vars)
+```
+
+Mutation statements (`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`/`DROP`/`ALTER`)
+are **never cached** — they always re-execute. SELECT results cache;
+clear via toolbar gear → **Clear cache**.
+
+## Schema explorer
+
+Click the **Schema** tab in the sidebar to browse the active
+connection's schema — tables, columns with types, foreign keys,
+indexes, row count estimates.
+
+Schemas are introspected on connection open + cached in `notes.db`.
+Click the refresh icon to re-introspect (useful after a migration).
+
+Schema-aware autocomplete fires inside DB blocks: type a table name,
+get column suggestions; type a column name, get type info.
+
+## Keyboard
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+Enter` | Run block |
+| `Cmd+.` | Cancel running query |
+| `Cmd+Shift+E` | Run as EXPLAIN (wraps the query) |
+
+## Common errors
+
+| Message | Cause | Fix |
+|---|---|---|
+| `connection refused` | DB not reachable | Check host/port, tunnel, firewall |
+| `relation "X" does not exist` | Wrong schema / search_path | Use fully-qualified name `public.X` |
+| `password authentication failed` | Wrong creds | Update via Environment manager (see [secrets](/docs/how-to/secrets)) |
+| `pool exhausted` | Too many concurrent queries against same conn | Reduce parallelism in Run-all |
+
+## Related
+
+- **[Add a database tutorial](/docs/tutorials/add-database)** — first-time setup
+- **[Block references](/docs/reference/block-references)** — `{{row[N].col}}`
+- **[Config files → connections.toml](/docs/reference/config-files)**

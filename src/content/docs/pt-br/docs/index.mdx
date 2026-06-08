@@ -1,0 +1,90 @@
+---
+title: Documentação
+description: Tutoriais, referência e explicações sobre o httui — o editor markdown pra debugar APIs e bancos de dados.
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+A documentação do httui é organizada em quatro seções, dependendo do
+que você tá tentando fazer.
+
+## Comece por aqui
+
+<CardGrid>
+  <LinkCard
+    title="Quickstart"
+    href="/pt-br/docs/tutorials/quickstart"
+    description="Instale o httui, crie um vault, rode seu primeiro bloco HTTP. ~10 minutos."
+  />
+  <LinkCard
+    title="Monte um teste de API encadeado"
+    href="/pt-br/docs/tutorials/chained-api"
+    description="Login → captura token → bate em endpoint protegido → assert. O fluxo httui num único runbook."
+  />
+  <LinkCard
+    title="Adicione um banco de dados"
+    href="/pt-br/docs/tutorials/add-database"
+    description="SQLite + guarda de mutação + SQL encadeado em HTTP. Sem dependência de serviço externo."
+  />
+</CardGrid>
+
+## As quatro seções
+
+<CardGrid>
+  <Card title="Tutoriais" icon="rocket">
+    Guias passo a passo que te levam do zero até um runbook funcionando.
+    **Comece por aqui se você é novo.**
+
+    - [Quickstart](/pt-br/docs/tutorials/quickstart)
+    - [Teste de API encadeado](/pt-br/docs/tutorials/chained-api)
+    - [Adicione um banco de dados](/pt-br/docs/tutorials/add-database)
+  </Card>
+  <Card title="How-to" icon="setting">
+    Resolva uma tarefa específica em 1 a 3 minutos.
+
+    - [Use variáveis de ambiente](/pt-br/docs/how-to/environments)
+    - [Guarde segredos no keychain](/pt-br/docs/how-to/secrets)
+    - [Referencie valores entre blocos](/pt-br/docs/how-to/references)
+    - [Faça assert do formato da response](/pt-br/docs/how-to/assertions)
+  </Card>
+  <Card title="Referência" icon="document">
+    Consulte a sintaxe exata pra blocos, referências e arquivos de config.
+
+    - [Bloco HTTP](/pt-br/docs/reference/http-block)
+    - [Bloco DB](/pt-br/docs/reference/db-block)
+    - [Referências entre blocos](/pt-br/docs/reference/block-references)
+    - [Layout do vault](/pt-br/docs/reference/vault-layout)
+    - [Arquivos de configuração](/pt-br/docs/reference/config-files)
+    - [Atalhos](/pt-br/docs/reference/shortcuts)
+    - [CLI (httui-tui)](/pt-br/docs/reference/cli)
+  </Card>
+  <Card title="Explicação" icon="open-book">
+    Como o httui funciona por baixo dos panos — arquitetura, performance,
+    integração com chat.
+
+    - [O modelo mental](/pt-br/docs/explanation/mental-model)
+    - [Por que markdown?](/pt-br/docs/explanation/why-markdown)
+    - [Local-first](/pt-br/docs/explanation/local-first)
+    - [Como funciona por baixo dos panos](/pt-br/docs/explanation/how-it-works)
+    - [Arquitetura (deep dive)](/pt-br/docs/architecture)
+  </Card>
+</CardGrid>
+
+## Use httui em qualquer lugar
+
+<CardGrid>
+  <LinkCard
+    title="httui-lang"
+    href="/pt-br/docs/httui-lang"
+    description="O formato de bloco .httui como uma linguagem de verdade — grammar tree-sitter + servidor LSP + extensões pra VS Code, Neovim, Zed e Helix."
+  />
+</CardGrid>
+
+## O que tá faltando?
+
+- **Traduções PT-BR / ES** — só o Quickstart está parcialmente traduzido.
+  O resto cai pra inglês.
+
+Quer contribuir? A documentação vive em
+[`httuicom/httui-site`](https://github.com/httuicom/httui-site) — PRs
+são bem-vindos.

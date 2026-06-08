@@ -1,0 +1,251 @@
+---
+title: Neovim
+description: Configure Neovim for .httui — tree-sitter parser + LSP server, with nvim-treesitter and nvim-lspconfig.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Neovim setup uses two upstream plugins you probably already have:
+**nvim-treesitter** for the grammar, **nvim-lspconfig** for the
+LSP server. httui-lang plugs into both.
+
+## Install
+
+### 1. The LSP server binary
+
+```bash
+cargo install httui-lsp
+```
+
+Or grab a prebuilt binary from
+[Releases](https://github.com/httuicom/httui-lang/releases) and put
+it on your `PATH`. Verify:
+
+```bash
+httui-lsp --version
+```
+
+### 2. The tree-sitter parser
+
+```vim
+:TSInstall httui
+```
+
+This pulls `tree-sitter-httui` and compiles the parser into your
+`nvim-treesitter` install. (Already registered upstream as of
+`nvim-treesitter` v0.x.)
+
+### 3. The lspconfig entry
+
+In your Neovim config, add:
+
+```lua
+-- init.lua
+local lspconfig = require("lspconfig")
+
+-- httui-lang server
+local configs = require("lspconfig.configs")
+if not configs.httui_lsp then
+  configs.httui_lsp = {
+    default_config = {
+      cmd = { "httui-lsp" },
+      filetypes = { "httui", "markdown" },
+      root_dir = function(fname)
+        return vim.fs.find(
+          { ".httui", "runbooks", "connections.toml", "envs" },
+          { upward = true, path = fname }
+        )[1] and vim.fs.dirname(vim.fs.find(
+          { ".httui", "runbooks", "connections.toml", "envs" },
+          { upward = true, path = fname }
+        )[1])
+      end,
+      settings = {
+        httui = {
+          env = "staging",   -- or read dynamically
+        },
+      },
+    },
+  }
+end
+lspconfig.httui_lsp.setup({})
+```
+
+(Upstream `lspconfig` will eventually ship a built-in `httui_lsp`
+config — until then the snippet above is canonical.)
+
+## Filetype association
+
+Tell Neovim to recognise `.httui` as its own filetype:
+
+```lua
+vim.filetype.add({
+  extension = {
+    httui = "httui",
+  },
+})
+```
+
+The LSP attaches to both `httui` filetype and `markdown` (so it
+runs inside `.md` fenced blocks).
+
+## Tree-sitter integration
+
+Enable highlight + indent + folds via `nvim-treesitter`:
+
+```lua
+require("nvim-treesitter.configs").setup({
+  ensure_installed = { "httui", "markdown", "markdown_inline" },
+  highlight = { enable = true },
+  indent = { enable = true },
+  fold = { enable = true },
+})
+
+-- Optional: use tree-sitter folds
+vim.opt.foldmethod = "expr"
+vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+```
+
+For markdown injection (httui inside `.md` fences), this is handled
+automatically by the parsers — the `markdown` parser knows to
+delegate to `httui` for `http`/`db-*` fenced regions.
+
+## Key bindings
+
+Standard LSP bindings work — define once in your `on_attach`:
+
+```lua
+local on_attach = function(client, bufnr)
+  local opts = { buffer = bufnr }
+  vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+  vim.keymap.set("n", "K",  vim.lsp.buf.hover, opts)
+  vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
+  vim.keymap.set("n", "<F2>", vim.lsp.buf.rename, opts)
+  vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
+  vim.keymap.set("n", "<leader>f",  function()
+    vim.lsp.buf.format({ async = true })
+  end, opts)
+end
+
+lspconfig.httui_lsp.setup({ on_attach = on_attach })
+```
+
+## Completion
+
+Pair with `nvim-cmp` or your preferred completion plugin. httui-lsp
+sources completions via standard LSP, no custom setup beyond having
+the LSP source enabled in cmp:
+
+```lua
+require("cmp").setup({
+  sources = {
+    { name = "nvim_lsp" },
+    -- your others
+  },
+})
+```
+
+Typing `{{` triggers the completion popup with all aliases above the
+cursor + env vars from the active env.
+
+## Active environment
+
+The LSP picks up the active env from `user.toml` at vault root. To
+switch from inside Neovim, use a custom command:
+
+```lua
+vim.api.nvim_create_user_command("HttuiEnv", function(opts)
+  local clients = vim.lsp.get_active_clients({ name = "httui_lsp" })
+  for _, c in ipairs(clients) do
+    c.notify("workspace/didChangeConfiguration", {
+      settings = { httui = { env = opts.args } },
+    })
+  end
+end, { nargs = 1 })
+```
+
+Then `:HttuiEnv staging` switches the env for hover/completion.
+
+## Run blocks from Neovim
+
+The LSP can dispatch a "run this block" message to the httui desktop
+if it's running on the same vault. Bind it via a code action or a
+custom command:
+
+```lua
+vim.keymap.set("n", "<leader>br", function()
+  vim.lsp.buf.execute_command({
+    command = "httui.runBlock",
+    arguments = {
+      uri = vim.uri_from_bufnr(0),
+      position = vim.api.nvim_win_get_cursor(0),
+    },
+  })
+end, { desc = "Run httui block under cursor" })
+```
+
+If the desktop isn't running, the command is a no-op (LSP returns
+"no runtime").
+
+For headless execution, shell out to `httui-tui run`:
+
+```lua
+vim.keymap.set("n", "<leader>brt", function()
+  local file = vim.api.nvim_buf_get_name(0)
+  vim.cmd("split | terminal httui-tui run " .. file .. " --env staging")
+end, { desc = "Run httui runbook in TUI" })
+```
+
+## Filetype-specific options
+
+```lua
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "httui",
+  callback = function()
+    vim.opt_local.tabstop = 2
+    vim.opt_local.shiftwidth = 2
+    vim.opt_local.expandtab = true
+    vim.opt_local.commentstring = "# %s"
+  end,
+})
+```
+
+## Troubleshooting
+
+### `:LspInfo` says httui_lsp not attached
+
+Check:
+
+```
+:LspLog
+```
+
+Common causes: `httui-lsp` not on `PATH`, vault root not detected
+(provide explicit `root_dir`).
+
+### No highlight inside markdown fences
+
+Ensure both parsers installed:
+
+```vim
+:TSInstall httui markdown markdown_inline
+```
+
+And `:TSPlayground` to confirm `httui` shows up under `http`/`db-*`
+fences.
+
+### LSP starts but no completions
+
+Likely env config missing. Add to your setup:
+
+```lua
+settings = { httui = { env = "local" } }
+```
+
+(Even an empty `envs/local.toml` makes the LSP happy if `local` is
+referenced.)
+
+## Related
+
+- **[LSP capabilities](/docs/httui-lang/lsp)** — what the server gives
+- **[Tree-sitter](/docs/httui-lang/tree-sitter)** — node types + queries
+- **[VS Code setup](/docs/httui-lang/editors/vscode)** — sibling editor

@@ -1,0 +1,128 @@
+---
+title: Use environment variables
+description: Run the same runbook against local, staging, and prod by switching one variable — without editing 50 references.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+You have one runbook that hits `https://api.example.com/...` and you
+need it to hit `https://staging-api.example.com/...` tomorrow, then
+`http://localhost:8080/...` on your laptop next week. The answer:
+**environment variables**.
+
+## The pattern
+
+Write the runbook once with `{{KEY}}` references, and define `KEY`
+once per environment in `envs/<env-name>.toml`. Switch environments
+in the TopBar; the runbook stays the same.
+
+## Define a variable
+
+In your vault, create or edit `envs/local.toml`:
+
+```toml
+[vars]
+BASE_URL = "http://localhost:8080"
+TIMEOUT_MS = 5000
+```
+
+And `envs/staging.toml`:
+
+```toml
+[vars]
+BASE_URL = "https://staging-api.example.com"
+TIMEOUT_MS = 30000
+```
+
+That's it. The file format is plain TOML — one `[vars]` table, key =
+value pairs.
+
+## Use the variable in a runbook
+
+In any HTTP / DB / standalone block, reference with `{{KEY}}` (no
+dots, no quotes):
+
+````markdown
+```http alias=health
+GET {{BASE_URL}}/health
+```
+````
+
+References resolve in **URLs, header keys/values, body, SQL queries,
+SQL parameters** — anywhere you can write text.
+
+<Aside type="tip" title="Why no dots?">
+  Block references use dots (`{{login.body.token}}`) for JSON paths.
+  Environment variables use just `{{KEY}}`. If both a block alias
+  and an env var share a name, the **block wins** — runs first,
+  references resolve.
+</Aside>
+
+## Switch environments
+
+Click the **environment selector** in the TopBar (next to the vault
+name). Pick `local`, `staging`, or any other env you defined.
+Re-run the block — `BASE_URL` resolves to the new value, no edit
+needed.
+
+Active env is persisted in `user.toml` per machine, so each teammate
+can default to their own.
+
+## Per-machine overrides (gitignored)
+
+Your `envs/staging.toml` says `BASE_URL = "https://staging-api.example.com"`,
+but you SSH-tunnel staging to your laptop on `localhost:15432`.
+Don't edit the shared file — create a sibling:
+
+```toml title="envs/staging.local.toml"
+[vars]
+BASE_URL = "http://localhost:15432"
+```
+
+The `.local.toml` suffix is gitignored by default (the
+[Create vault flow](/docs/tutorials/quickstart#2-create-your-first-vault)
+adds the rule). When `staging` is active, httui merges:
+
+1. `envs/staging.toml` (shared, committed)
+2. `envs/staging.local.toml` (your machine, gitignored)
+
+The `.local` values **override** the shared ones. Your teammate's
+file can have a different shape; both machines run the same runbook
+against their own tunnels.
+
+## Variables in connection strings
+
+Same `{{KEY}}` syntax works in `connections.toml`:
+
+```toml
+[connections.pg-staging]
+type = "postgres"
+host = "{{PG_HOST}}"
+port = 5432
+database = "payments"
+```
+
+Now your `envs/staging.toml` controls which Postgres the runbook
+hits. Useful when you have read replicas or want one env to point at
+a snapshot.
+
+## Variables vs secrets
+
+A regular env var (above) sits in plain TOML. **Secrets** (passwords,
+API tokens) go through a different flow — the value never touches
+git. See [Store secrets in the OS keychain](/docs/how-to/secrets).
+
+## Inspecting what resolved
+
+Hover any `{{...}}` in the editor — you see the resolved value (or
+the error if undefined). When a block runs, the request panel's
+**Raw** tab shows the literal text sent over the wire — references
+are already substituted.
+
+## Common gotchas
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `{{BASE_URL}}` rendered literally in the response | No env active or key not in `[vars]` | Click TopBar env selector; check spelling |
+| Different value than expected | `.local.toml` override active | Open `envs/<env>.local.toml` and review |
+| Variable resolves to `__KEYCHAIN__` | Marked as secret, keychain locked / entry missing | See [secrets guide](/docs/how-to/secrets) |

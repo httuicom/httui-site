@@ -5,7 +5,7 @@
 
 :root[data-theme="dark"] {
   --sl-color-bg: oklch(0.16 0.012 230);
-  --sl-color-bg-nav: oklch(0.185 0.013 230);
+  --sl-color-bg-nav: oklch(0.16 0.012 230);
   --sl-color-bg-sidebar: oklch(0.16 0.012 230);
   --sl-color-text: oklch(0.90 0.014 240);
   --sl-color-text-accent: oklch(0.84 0.160 90);
@@ -18,7 +18,7 @@
 
 :root[data-theme="light"] {
   --sl-color-bg: oklch(0.985 0.006 90);
-  --sl-color-bg-nav: oklch(0.972 0.008 90);
+  --sl-color-bg-nav: oklch(0.985 0.006 90);
   --sl-color-bg-sidebar: oklch(0.985 0.006 90);
   --sl-color-text: oklch(0.20 0.040 240);
   --sl-color-text-accent: oklch(0.52 0.130 90);
@@ -27,4 +27,33 @@
   --sl-color-accent: oklch(0.78 0.160 95);
   --sl-color-accent-low: oklch(0.93 0.100 95);
   --sl-color-accent-high: oklch(0.52 0.130 90);
+}
+
+/* Header alignment with landing Nav */
+.site-title img {
+  height: 22px !important;
+  width: auto !important;
+  max-height: 22px !important;
+}
+
+.site-title {
+  gap: 0 !important;
+}
+
+header.header {
+  border-bottom: 1px solid var(--sl-color-hairline-light) !important;
+}
+
+/* Match landing Nav: fontes/typography */
+.header,
+.sidebar-pane,
+.right-sidebar {
+  font-family: "Geist", system-ui, -apple-system, sans-serif;
+}
+
+/* Markdown tables — full width */
+.sl-markdown-content table {
+  width: 100%;
+  display: table;
+  table-layout: auto;
 }

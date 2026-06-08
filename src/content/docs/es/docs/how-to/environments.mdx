@@ -1,0 +1,130 @@
+---
+title: Usa variables de entorno
+description: Ejecuta el mismo runbook contra local, staging y prod cambiando una variable — sin editar 50 referencias.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Tienes un runbook que pega a `https://api.example.com/...` y necesitas
+que pegue a `https://staging-api.example.com/...` mañana, luego a
+`http://localhost:8080/...` en tu laptop la semana que viene. La
+respuesta: **variables de entorno**.
+
+## El patrón
+
+Escribe el runbook una vez con referencias `{{KEY}}`, y define `KEY`
+una vez por entorno en `envs/<env-name>.toml`. Cambia de entorno en
+la TopBar; el runbook queda igual.
+
+## Define una variable
+
+En tu vault, crea o edita `envs/local.toml`:
+
+```toml
+[vars]
+BASE_URL = "http://localhost:8080"
+TIMEOUT_MS = 5000
+```
+
+Y `envs/staging.toml`:
+
+```toml
+[vars]
+BASE_URL = "https://staging-api.example.com"
+TIMEOUT_MS = 30000
+```
+
+Listo. El formato de archivo es TOML plano — una tabla `[vars]`,
+pares key = value.
+
+## Usa la variable en un runbook
+
+En cualquier bloque HTTP / DB / standalone, referencia con `{{KEY}}`
+(sin puntos, sin comillas):
+
+````markdown
+```http alias=health
+GET {{BASE_URL}}/health
+```
+````
+
+Las referencias resuelven en **URLs, header keys/values, body,
+queries SQL, parámetros SQL** — en cualquier lado donde puedas
+escribir texto.
+
+<Aside type="tip" title="¿Por qué sin puntos?">
+  Las referencias entre bloques usan puntos (`{{login.body.token}}`)
+  para JSON paths. Las variables de entorno usan solo `{{KEY}}`. Si un
+  alias de bloque y una env var comparten nombre, el **bloque gana** —
+  ejecuta primero, las referencias resuelven.
+</Aside>
+
+## Cambia de entorno
+
+Haz clic en el **environment selector** en la TopBar (al lado del
+nombre del vault). Elige `local`, `staging`, o cualquier otro env que
+hayas definido. Re-ejecuta el bloque — `BASE_URL` resuelve al nuevo
+valor, sin necesidad de editar.
+
+El env activo se persiste en `user.toml` por máquina, así que cada
+compañero puede defaultear al suyo.
+
+## Overrides por máquina (gitignored)
+
+Tu `envs/staging.toml` dice `BASE_URL = "https://staging-api.example.com"`,
+pero haces SSH-tunnel de staging a tu laptop en `localhost:15432`.
+No edites el archivo compartido — crea un hermano:
+
+```toml title="envs/staging.local.toml"
+[vars]
+BASE_URL = "http://localhost:15432"
+```
+
+El sufijo `.local.toml` está gitignored por default (el
+[flujo Create vault](/es/docs/tutorials/quickstart#2-crea-tu-primer-vault)
+agrega la regla). Cuando `staging` está activo, httui mergea:
+
+1. `envs/staging.toml` (compartido, committed)
+2. `envs/staging.local.toml` (tu máquina, gitignored)
+
+Los valores `.local` **sobreescriben** los compartidos. El archivo de
+tu compañero puede tener una forma distinta; ambas máquinas ejecutan
+el mismo runbook contra sus propios tunnels.
+
+## Variables en connection strings
+
+La misma sintaxis `{{KEY}}` funciona en `connections.toml`:
+
+```toml
+[connections.pg-staging]
+type = "postgres"
+host = "{{PG_HOST}}"
+port = 5432
+database = "payments"
+```
+
+Ahora tu `envs/staging.toml` controla a qué Postgres pega el runbook.
+Útil cuando tienes read replicas o quieres que un env apunte a un
+snapshot.
+
+## Variables vs secretos
+
+Una env var regular (arriba) vive en TOML plano. Los **secretos**
+(contraseñas, API tokens) van por un flujo diferente — el valor nunca
+toca git. Ve
+[Guardar secretos en el OS keychain](/es/docs/how-to/secrets).
+
+## Inspeccionando lo que resolvió
+
+Pasa el cursor sobre cualquier `{{...}}` en el editor — ves el valor
+resuelto (o el error si está indefinido). Cuando un bloque ejecuta,
+el tab **Raw** del panel de request muestra el texto literal enviado
+por el wire — las referencias ya están sustituidas.
+
+## Gotchas comunes
+
+| Síntoma | Causa | Fix |
+|---|---|---|
+| `{{BASE_URL}}` renderizado literal en la respuesta | Sin env activo o key no está en `[vars]` | Haz clic en el env selector de la TopBar; revisa la ortografía |
+| Valor diferente al esperado | Override `.local.toml` activo | Abre `envs/<env>.local.toml` y revisa |
+| La variable resuelve a `__KEYCHAIN__` | Marcada como secret, keychain locked / entry missing | Ve la [guía de secretos](/es/docs/how-to/secrets) |

@@ -1,0 +1,116 @@
+---
+title: Performance
+description: Metas de latência sentida pelo usuário com que o httui se compromete, com receitas reproduzíveis pra medir as cinco coisas que o usuário sente primeiro.
+---
+
+Os números abaixo são as latências sentidas pelo usuário com que o
+httui se compromete. Regressões contra qualquer meta devem quebrar
+o CI antes de chegar na `main`. O harness que aplica isso é o
+follow-up aberto desse documento; as metas em si são o contrato.
+
+As cinco coisas que o usuário sente primeiro:
+
+| # | Métrica | Meta | Medido em | Notas |
+|---|---|---|---|---|
+| 1 | Cold start até primeiro frame interativo | &lt; 1.5s | M1 / 16 GB | De `open httui.app` até um empty-state clicável. |
+| 2 | Footprint de memória idle | &lt; 200 MB | M1 / 16 GB | RSS depois de abrir com vault vazio, sem sessão de chat. |
+| 3 | Overhead de bloco HTTP vs `curl` puro | &lt; 50 ms | localhost loopback | Mediana de `httui` menos `curl` pra mesma request. |
+| 4 | Parse de TOML em troca de env | &lt; 5 ms | vault típico (10 envs / 30 vars cada) | Inclui merge de `.local`. |
+| 5 | Lookup de cache SQLite | &lt; 1 ms | hit em linha de `block_results` | Lookup indexado em `(file_path, block_hash)`. |
+
+Números são reproduzíveis: cada seção de medição abaixo nomeia os
+arquivos / funções pra chamar e o formato de comando que te leva
+pro mesmo número. Drift &gt; 20% contra qualquer meta deve ser
+investigada antes da mudança shippar.
+
+## Como medir
+
+### 1. Cold start até primeiro frame interativo
+
+```bash
+# macOS — mede primeiro paint do window-server via `osascript`
+make build  # produz target/release/bundle/macos/httui.app
+START=$(date +%s%3N)
+open -W "target/release/bundle/macos/httui.app"
+END=$(date +%s%3N)
+echo "Cold start: $((END - START)) ms"
+```
+
+A medição inclui init do runtime Tauri + parse do bundle buildado
+por Vite + primeiro paint do React. Reduza cortando o bootstrap
+do sidecar de chat (hook `setup` do Tauri) ou lazy-loadando
+extensões CodeMirror não críticas.
+
+### 2. Footprint de memória idle
+
+```bash
+# Abra o app, feche todos os outros processos, espere 30s pra estabilizar.
+ps -o rss= -p "$(pgrep -n httui)"  # em KB; divida por 1024 pra MB
+```
+
+Fique de olho no crescimento do cache `vault_config::*Store` (cada
+store mantém um `RwLock<Option<Cached>>` por arquivo). Se um
+vault cresce além de ~100 envs o cache por env pode pesar a
+memória.
+
+### 3. Overhead de bloco HTTP vs `curl` puro
+
+```bash
+# Num runbook, rode um bloco `GET http://localhost:8080/ping`.
+# Leia `block_history.elapsed_ms` da última run.
+# Compare com:
+curl -s -o /dev/null -w "%{time_total}\n" http://localhost:8080/ping
+```
+
+Custo do wrapper inclui: resolução de ref →
+`executor::http::execute_streamed` → build + send do `reqwest` →
+serialização do resultado. Os benches de `executor::http` em
+`httui-core/src/executor/http/` cobrem os paths mais caros.
+
+### 4. Parse de TOML em troca de env
+
+```rust
+// httui-core/src/vault_config/environments_store.rs::load_env
+// Cronometre `read_toml::<EnvFile>(path)` pro tamanho típico de vault.
+```
+
+O bench deve incluir o merge de override `.local` de
+`vault_config::merge::load_with_local`. O cache mtime da store
+curto-circuita leituras repetidas, então o bench precisa invalidar
+o cache entre runs pra medir tempo real de disco + parse.
+
+### 5. Lookup de cache SQLite
+
+```rust
+// httui-core/src/block_results.rs::get_block_result
+// Hot path: SELECT * FROM block_results WHERE file_path = ? AND block_hash = ?
+```
+
+O index `(file_path, block_hash)` da migração `001_initial.sql` é
+o que bate a meta de &lt; 1 ms. Se a tabela crescer além de ~100k
+linhas a cadência de checkpoint do WAL pode dominar; o trim por
+bloco-histórico da migração `009_block_run_history.sql` mantém as
+coisas limitadas na tabela de run-history mas não em
+`block_results`. Um cap de tamanho de cache + eviction LRU está
+no radar pra v2.
+
+## Follow-ups abertos
+
+- **Harness de bench** — ainda não implementado. As metas acima
+  estão comprometidas; o harness baseado em criterion que aplica
+  elas no CI pousa quando o projeto escolher um crate de
+  benchmarking. Duas formas naturais:
+  - `httui-core/benches/*.rs` com `criterion` + `cargo bench` →
+    encaixa no fluxo padrão de bench Rust mas precisa de uma
+    dev-dependency.
+  - Loops de medição `std::time::Instant` puros em arquivos de
+    teste marcados `#[ignore]` → sem dep nova, mas perde a
+    análise estatística do criterion.
+  Qualquer um shippa; ambos reproduzem os números acima.
+- **Integração CI** — rodar o bench em cada PR; alertar em
+  regressão &gt;20% vs main. Dono do lado GH Actions assim que o
+  harness existir.
+- **Medições em hardware real** — as metas acima são baseadas no
+  design atual; verificar nos targets reais M1 / Linux / Windows
+  é trabalho hardware-bound pro usuário. Os números devem ser
+  re-confirmados pré-launch.

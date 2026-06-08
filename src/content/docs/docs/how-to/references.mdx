@@ -1,0 +1,197 @@
+---
+title: Reference values between blocks
+description: Pipe data from one block into the next — JSON paths, headers, cookies, SQL rows, positional shortcuts.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The `{{...}}` syntax is what turns httui from "a markdown editor"
+into "a chained runtime". This guide is the complete cheatsheet for
+references: where they come from, where they can go, what scoping
+rules apply.
+
+## Anatomy of a reference
+
+```
+{{ alias . field . path }}
+   ^^^^^   ^^^^^   ^^^^
+   |       |       |
+   |       |       JSON path into the field
+   |       body | status | headers | cookies | row
+   the alias of the block whose response you want
+```
+
+Whitespace inside `{{ ... }}` is allowed but discouraged for grep-ability.
+
+## Fields available on every block response
+
+| Field | What it is | Example |
+|---|---|---|
+| `body` | JSON-parsed response body (or text if not JSON) | `{{login.body.token}}` |
+| `status` | numeric HTTP status code | `{{login.status}}` |
+| `headers.<name>` | response header value | `{{login.headers.x-request-id}}` |
+| `cookies.<name>` | set-cookie value | `{{login.cookies.session}}` |
+| `size` | response body length in bytes | `{{download.size}}` |
+| `time` | total elapsed in ms | `{{slow.time}}` |
+
+DB blocks have one extra field:
+
+| Field | What it is | Example |
+|---|---|---|
+| `row[N]` | nth row of the result set | `{{users_list.row[0].email}}` |
+| `rows` | full array of rows | `{{users_list.rows}}` (rare) |
+| `affected` | rows affected by INSERT/UPDATE/DELETE | `{{seed.affected}}` |
+
+## JSON paths
+
+After `body.` you can drill into any JSON shape with dot notation
+and `[N]` indexing:
+
+````markdown
+```http alias=order
+GET {{BASE_URL}}/orders/{{previous.body.data.items[0].id}}
+Authorization: Bearer {{login.body.tokens.access_token}}
+```
+````
+
+| Pattern | Reads |
+|---|---|
+| `body.user.id` | `{ user: { id: 42 } }` → `42` |
+| `body.items[0].name` | `{ items: [{ name: "x" }] }` → `"x"` |
+| `body.tags[2]` | `{ tags: ["a", "b", "c"] }` → `"c"` |
+| `body.nested["odd key"]` | bracket-quoted for non-identifier keys |
+| `body[*].name` | **NOT supported** — use chained blocks or expects |
+
+## Positional shortcut: `{{$prev}}`
+
+When you don't care about naming, `$prev` is "the previous executed
+block, response as the implicit root":
+
+````markdown
+```http alias=login
+POST {{BASE_URL}}/auth/login
+```
+
+```http
+GET {{BASE_URL}}/users/{{$prev.body.user.id}}
+```
+````
+
+`{{$prev.body.user.id}}` is exactly `{{login.body.user.id}}`. Use
+when the alias is obvious from context (one-shot script style).
+
+<Aside type="caution" title="$prev is fragile">
+  Reorder blocks and `$prev` resolves to something different. Prefer
+  named aliases for runbooks you commit. `$prev` is for quick
+  exploration.
+</Aside>
+
+## Where references can go
+
+References resolve at these positions before the block dispatches:
+
+| Block type | Position | Example |
+|---|---|---|
+| HTTP | URL | `GET {{BASE_URL}}/x` |
+| HTTP | header key | `{{HEADER_NAME}}: value` |
+| HTTP | header value | `Authorization: Bearer {{token}}` |
+| HTTP | body (any content type) | `{ "id": {{user.body.id}} }` |
+| HTTP | query string | `?since={{cutoff.body.iso}}` |
+| DB | SQL text | `SELECT * FROM x WHERE id = {{user.body.id}}` |
+| DB | connection params (host/port via session override) | `{{PG_HOST}}` |
+| Standalone | block body | depends on block type |
+
+References do **not** resolve in info-string tokens
+(`alias=...`, `timeout=...`) — those are configuration, not data.
+
+## SQL references are always bound
+
+When a `{{...}}` shows up in a SQL block, httui does **not**
+string-interpolate it. The reference becomes a **bind parameter**
+(`$1` for Postgres, `?` for SQLite/MySQL), and the resolved value
+goes through the driver's prepared-statement binding:
+
+````markdown
+```db-local
+SELECT * FROM orders
+WHERE customer_id = {{user.body.id}}
+  AND created_at > {{cutoff.body.iso}}
+```
+````
+
+What the driver sees:
+
+```sql
+SELECT * FROM orders
+WHERE customer_id = $1
+  AND created_at > $2
+```
+
+Bind values: `[user.body.id, cutoff.body.iso]`.
+
+**Zero SQL injection surface**, even with user-controlled values
+flowing in through HTTP responses.
+
+## Priority: block > env var
+
+If you have a block aliased `BASE_URL` and an env var also called
+`BASE_URL`, the **block wins** when both are in scope:
+
+````markdown
+```http alias=BASE_URL
+GET https://dynamic-discovery.example.com/url
+```
+
+```http
+GET {{BASE_URL}}/health     # uses the block's response body as the URL!
+```
+````
+
+This is by design (gives runbooks a way to override env values at
+runtime), but easy to surprise yourself. **Rule of thumb**: use
+ALL_CAPS for env vars, snake_case or kebab-case for block aliases.
+
+## Auto-execution: the DAG
+
+When you run a block that references `{{other.body.X}}`, httui:
+
+1. Parses the references in your block.
+2. Finds `other` is an alias defined **above** the current block.
+3. Checks the cache — if `other`'s inputs (body, env, refs) hash
+   matches the cached run, uses the cached response.
+4. Otherwise runs `other` (which may itself trigger upstream
+   dependencies — recurse).
+5. Substitutes the resolved value into your block.
+6. Runs your block.
+
+References can only point **upward** in the file. This makes the
+runbook a DAG by construction — no cycles possible, no "block 3
+references block 7 which references block 2" loops.
+
+## When the value is missing
+
+| Cause | What you see |
+|---|---|
+| Alias doesn't exist in any block above | Editor underlines the ref red; hover shows "unknown alias" |
+| Field path doesn't exist in the response | Block runs, panel shows error: "path `body.user.id` not found in response" |
+| Upstream block hasn't run yet | httui runs it first (auto-exec) |
+| Upstream block errored | The error propagates — downstream block doesn't run, panel shows "upstream `login` failed" |
+
+## Inspecting resolved values
+
+| Where | How |
+|---|---|
+| In editor | Hover the `{{...}}` — popup shows resolved value or error |
+| Before run | The popup updates live as the cache fills |
+| After run | **Raw** tab of the response panel shows the literal request, all refs already substituted |
+| In drawer | Click `⚙` on the block toolbar → **References** tab lists every ref with current value |
+
+## Related
+
+- **[Build a chained API test](/docs/tutorials/chained-api)** — see
+  references in action with a full login → me → assert flow.
+- **[Use environment variables](/docs/how-to/environments)** —
+  `{{KEY}}` without dots (no `.body`, no `.status` — just a flat
+  string lookup).
+- **[Assert response shape](/docs/how-to/assertions)** — using refs
+  inside `# expect:` to compare across blocks.

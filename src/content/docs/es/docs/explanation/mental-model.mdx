@@ -1,0 +1,149 @@
+---
+title: El modelo mental
+description: Un runbook es documentación y una herramienta a la vez. Entender esta distinción hace que httui haga clic.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Si usaste Postman, Insomnia, o un archivo `.http` de JetBrains, ya
+sabes cómo hacer requests HTTP desde un editor. El giro de httui no
+es *qué* puedes hacer — es *qué es cada archivo*. Esta página explica
+el modelo mental que dispara cada decisión de diseño.
+
+## La gran idea
+
+Un **runbook** es un archivo `.md` que es **simultáneamente**:
+
+| Rol | Qué significa |
+|---|---|
+| **Documentación** | Prosa markdown — headings, listas, código, links — legible en cualquier markdown viewer, diffeable en git, indexable por Obsidian |
+| **Una herramienta** | Adentro, los bloques fenced (```http, ```db-pg) **ejecutan** — pegan a APIs reales, consultan bases de datos reales, capturan respuestas |
+
+El mismo párrafo que explica "primero pegamos a `/auth/login` para
+obtener un token" se sienta **al lado** del bloque HTTP real que lo
+hace. Cuando la shape cambia, arreglas un archivo, no tres (docs,
+colección de Postman, script de shell).
+
+## Por qué esto colapsa cuatro herramientas
+
+La mayoría de los teams tienen lugares separados para cada uno de:
+
+| Herramienta | Qué contiene |
+|---|---|
+| Notion / Confluence | La narrativa — "así es como funciona el flujo de payments" |
+| Postman / Insomnia | Las requests HTTP, en un archivo JSON propietario |
+| DBeaver / TablePlus | Las queries SQL, en un panel de saved-queries |
+| Un `playbook.sh` | La cadena — "primero llamá A, luego B con el token de A" |
+
+Cada herramienta tiene su propio formato, su propio state, su propia
+auth. La **narrativa drifteà** de las requests, que driftean de las
+queries, que driftean del script.
+
+Un runbook es **un archivo .md** que contiene los cuatro.
+Committéalo a git, tu team tiene la misma fuente de verdad — los
+docs literalmente *son* la herramienta.
+
+## El modelo de bloques
+
+Dentro de un runbook, los **bloques** son las unidades ejecutables.
+Cada uno es un bloque fenced de código con un lenguaje especial:
+
+| Fence | Qué ejecuta |
+|---|---|
+| `\`\`\`http` | Una request HTTP |
+| `\`\`\`db-&lt;conn&gt;` | Una query SQL contra la conexión `&lt;conn&gt;` |
+| `\`\`\`diff` | Diff viewer standalone (entre dos panes de texto) |
+
+El **body** de un bloque es solo texto — un mensaje HTTP, una
+sentencia SQL. Haz clic en el botón ▶ (o `Cmd+Enter`) y httui envía
+la request, muestra la respuesta inline debajo del bloque.
+
+Los bloques se **referencian** entre sí vía `{{alias.body.field}}`.
+El grafo de dependencias es automático — ejecutar el bloque B que
+referencia A ejecuta A primero.
+
+## El runbook es el artefacto
+
+Un runbook es **la unidad de valor más pequeña** en httui. Algunos
+ejemplos:
+
+| Runbook | Qué hace |
+|---|---|
+| `smoke-staging.md` | 5 bloques HTTP contra staging, cada uno con `# expect:` — tu smoke test de CI |
+| `debug-2026-06-issue.md` | Notas + cadenas curl usadas para debuggear un incidente específico, archivadas para futuros post-mortems |
+| `payments-flow.md` | La spec viva del flujo de payments — narrativa + las llamadas reales, mantenidas en sync porque viven juntas |
+| `daily-checks.md` | 12 bloques que ejecutas cada mañana para verificar que el env de dev esté sano |
+
+Cada uno es **un archivo markdown en un repo git**. Pull request
+review. Diff entre commits. Code-review de la API spec.
+
+## Vault: el workspace
+
+Un **vault** es una carpeta que contiene muchos runbooks más
+configuración compartida:
+
+```
+~/payments-runbooks/             # el vault
+├── runbooks/
+│   ├── smoke-staging.md         # runbook
+│   ├── debug-incident-42.md     # runbook
+│   └── flows/
+│       ├── refund.md            # runbook
+│       └── chargeback.md        # runbook
+├── connections.toml             # setups compartidos de conexiones DB
+└── envs/
+    ├── staging.toml             # variables por env
+    └── prod.toml
+```
+
+Cuando haces `git clone` del vault en otra máquina, **todo lo
+necesario para ejecutar los runbooks viaja con él** — excepto tus
+secretos (esos se quedan en tu OS keychain, ve
+[Guarda secretos](/es/docs/how-to/secrets)).
+
+## El modelo de ejecución en un párrafo
+
+Hit `Cmd+Enter` en un bloque. httui parsea el body, resuelve todas
+las referencias `{{...}}` (ejecutando bloques upstream si es
+necesario — auto-ejecución desde el DAG), sustituye los valores
+resueltos, despacha la request, y streamea la respuesta de vuelta a
+un panel debajo del bloque. La respuesta se cachea por content
+hash, así que la próxima vez que referencias este bloque desde otro
+lado, es instantánea a menos que los inputs hayan cambiado.
+
+Eso es todo. Sin build step, sin compile, sin "save y luego run
+desde otra ventana". Edit inline → run inline → resultado inline.
+
+## El problema del drift de narrativa (y el fix)
+
+El problema con el mundo de cuatro herramientas:
+
+```
+Martes:
+  Wiki:        "POST /v2/payments devuelve { id, status }"
+  Postman:     POST /v2/payments → 200 { id }   ← el schema drifteó, todavía no hay `status`
+  Shell:       jq .id (bien)
+
+Miércoles: el team de la API agrega `status` a la respuesta.
+
+Jueves:
+  Wiki:        sin cambios — todavía dice { id, status }
+  Postman:     sin cambios — tu colección
+  Shell:       sigue funcionando (solo lee .id)
+  → El wiki está equivocado. Nadie lo sabe.
+```
+
+El fix en httui: el texto del wiki y la request viven en el mismo
+archivo. Cuando editas el runbook para agregar
+`{{create.body.status}}`, la request, la respuesta Y la prosa todos
+reflejan la nueva shape. **El drift se vuelve un merge conflict**,
+no una stale silenciosa.
+
+## A dónde ir después
+
+Ya tienes el modelo mental. Ahora:
+
+- **[Quickstart](/es/docs/tutorials/quickstart)** — haz uno en 10 minutos
+- **[¿Por qué markdown?](/es/docs/explanation/why-markdown)** — vs Postman / .http / Insomnia
+- **[Cómo funciona por dentro](/es/docs/explanation/how-it-works)** — ejecución, referencias, storage
+- **[Local-first](/es/docs/explanation/local-first)** — sin cloud, sin telemetría, por qué

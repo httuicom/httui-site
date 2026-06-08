@@ -1,0 +1,135 @@
+---
+title: Chat & MCP
+description: O painel de chat na lateral direita — sessão Claude ancorada no seu vault, ferramentas MCP, permissões, anexos, sessões e servidores custom.
+---
+
+O painel de chat na lateral direita é uma sessão Claude ancorada no
+seu vault ativo. O modelo lê e escreve arquivos do vault (notes,
+conexões, ambientes) através de um conjunto pequeno de ferramentas
+MCP — as mesmas regras de permissão se aplicam, seja o modelo que
+invocou ou você que clicou no controle de UI equivalente.
+
+## Abrir o painel
+
+`Cmd+B` alterna o painel de chat. Na primeira abertura o sidecar
+(processo Node empacotado com o app) spawna e conecta na API da
+Anthropic; toggles seguintes reusam o processo rodando.
+
+O header do painel mostra o working directory atual em que o chat
+está ancorado — default é o path do vault ativo; clique nele pra
+apontar a sessão pra outra pasta.
+
+## O que o modelo pode fazer
+
+Out of the box o chat tem acesso a quatro famílias de ferramentas
+MCP que o servidor `httui-mcp` empacotado expõe:
+
+| Família | Tools |
+|---|---|
+| **notes** | `list_notes`, `read_note`, `create_note`, `update_note`, `search_notes` |
+| **connections** | `list_connections`, `get_connection` |
+| **environments** | `list_environments`, `get_environment_variables` |
+| **blocks** | `list_blocks_in_note`, `get_block_settings`, `get_block_history` |
+
+Tools de notes / connections / environments passam pelas mesmas
+stores file-backed que a UI usa — `connections.toml`, `envs/*.toml`,
+`runbooks/*.md`. Tools de blocks expõem só metadata (settings,
+histórico) — sem conteúdo de corpo, sem execução.
+
+## Sistema de permissões
+
+Chamadas de tool não rodam em silêncio. Cada uma é checada contra
+essa cascata antes de executar:
+
+1. **Bash** → sempre pergunta pro usuário (sem auto-allow).
+2. **Edit / Write fora do cwd da sessão** → deny duro.
+3. **Read / Glob / Grep dentro do cwd da sessão** → auto-allow.
+4. **Regra persistida** (tabela `tool_permissions`, scope `always`) →
+   aplica.
+5. **Regra de sessão** (scope `session`) → aplica.
+6. **Fallback** → pergunta via banner de permissão no app.
+
+O banner oferece três escopos quando você aprova:
+
+- **Once** — vale só pra essa única chamada.
+- **Session** — vale pro resto dessa sessão de chat.
+- **Always** — persiste no SQLite local. Gerencie regras salvas
+  pelo ícone de engrenagem no header do chat.
+
+Pro `update_note` o banner mostra um diff compacto com o path do
+arquivo e stats `+N -M` de linhas. Clicar em "View Diff" abre a
+visão merge side-by-side (CodeMirror); o chat não aplica a edição
+até você dar Allow.
+
+## Anexos de imagem
+
+Até 20 imagens por mensagem, 5MB cada. Três caminhos de input:
+
+- File picker (ícone de clipe).
+- Colar do clipboard — `Cmd+V` sobre o input do chat.
+- Drag-drop nativo do Tauri — arraste uma imagem do file manager
+  do SO pra região de input do chat.
+
+Imagens são normalizadas antes do envio: lado &gt; 2048px é
+reduzido via Lanczos3, depois re-encodado como JPEG Q85. Arquivos
+fonte ficam intocados no disco.
+
+## Wikilinks na sua mensagem
+
+Digite `[[note-name]]` no input do chat. O httui escaneia o vault
+ativo procurando uma note que casa (match de stem case-insensitive),
+inlineia o conteúdo como bloco de contexto pro modelo e mantém o
+literal `[[...]]` no log da mensagem pra scrolls futuros mostrarem
+o que você originalmente escreveu.
+
+## Sessões
+
+O chat guarda sessões no SQLite local (`notes.db`). Lista de
+sessões vive na aba esquerda do painel de chat. Cada sessão
+mantém o próprio:
+
+- Histórico de mensagens
+- Âncora de CWD
+- Regras de permissão persistidas
+- Roll-up de uso de tokens
+
+O `claude_session_id` do lado Anthropic faz round-trip pra que uma
+sessão retome intacta depois de um restart do app. Se o resume
+falhar (raro — mudanças no backend, session id deletado), o painel
+oferece "Continue as a new conversation" — mesmas mensagens
+localmente, `claude_session_id` novo upstream.
+
+## Tools MCP custom
+
+O servidor `httui-mcp` empacotado é só uma entrada MCP. Servidores
+extras se configuram em `~/.config/httui/user.toml`:
+
+```toml
+[mcp.servers.my-server]
+command = "/usr/local/bin/my-mcp"
+args = ["--vault", "${VAULT_PATH}"]
+```
+
+Cada entrada spawna um processo local pro qual o chat pode rotear
+chamadas de tool junto com as built-ins. Vale o protocolo MCP
+stdio padrão; veja a [spec MCP](https://modelcontextprotocol.io/)
+pra superfície que um servidor tem que expor.
+
+## Uso de tokens
+
+Roll-ups de token por dia + por sessão ficam na aba **Usage**.
+Acompanha `input_tokens` / `output_tokens` / `cache_read_tokens`
+separadamente pra você ver a taxa de cache hit (cache reads são
+10× mais baratas que reads novas). Eficiência de cache aparece como
+um único percentual no topo.
+
+## Coisas pra saber
+
+- O chat é **só Anthropic** hoje. Sem swap-in de OpenAI / modelos
+  open — as suposições de protocolo no sidecar são específicas do
+  Claude.
+- O chat é **só online** no momento. Sem modo offline.
+- O chat respeita o **mesmo banner de conflito** que o editor —
+  se ele tenta escrever uma note que foi editada externamente
+  durante a sessão de chat, o banner de conflito dispara antes do
+  diff e você decide se faz merge.

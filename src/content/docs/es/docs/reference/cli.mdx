@@ -1,0 +1,217 @@
+---
+title: CLI (httui-tui)
+description: Binario de terminal para abrir vaults, ejecutar runbooks desde la shell e integración con CI.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`httui-tui` es el compañero de terminal de la desktop app — mismo
+runtime (executors, referencias, secretos), sin GUI. Úsalo para
+sesiones SSH, integración con CI, o cualquier lado donde un browser
+engine sea overkill.
+
+## Instalar
+
+El binario TUI shipea en cada release. Después de instalar la
+desktop app, `httui-tui` está en tu `PATH`:
+
+```bash
+httui-tui --version
+```
+
+Si no está en `PATH`, el binario está en:
+
+- macOS: `/Applications/httui.app/Contents/Resources/httui-tui`
+- Linux: al lado de la extracción del AppImage
+- Windows: en el directorio de instalación, `httui-tui.exe`
+
+## Abrir un vault interactivamente
+
+```bash
+httui-tui
+```
+
+Abre el último vault activo de tu install de desktop. En el primer
+run sin vault, muestra el flujo de empty-state (Open / Clone /
+Create — igual que el desktop).
+
+```bash
+httui-tui open ~/my-vault
+```
+
+Abre un vault específico. Se persiste como último activo a través
+de las sesiones.
+
+## Ejecutar un runbook (one-shot)
+
+```bash
+httui-tui run runbooks/smoke-staging.md
+```
+
+Ejecuta cada bloque del archivo de arriba abajo, imprime los
+resultados a stdout, exits `0` si todos pasan / non-zero si alguno
+falla (CI-friendly).
+
+### `--env <name>`
+
+```bash
+httui-tui run runbooks/smoke.md --env staging
+```
+
+Elige el entorno antes de ejecutar. Mismo efecto que elegir en el
+selector de la TopBar.
+
+### `--block <alias>`
+
+```bash
+httui-tui run runbooks/smoke.md --block login --block me
+```
+
+Ejecuta solo los bloques nombrados (con su cadena de dependencias).
+Útil para re-ejecutar un bloque lento mientras iteras.
+
+### `--no-cache`
+
+```bash
+httui-tui run runbooks/smoke.md --no-cache
+```
+
+Saltea el cache lookup; re-ejecuta cada bloque. Igual que
+`Cmd+Shift+R` en el desktop.
+
+### `--format <fmt>`
+
+```bash
+httui-tui run runbooks/smoke.md --format json
+```
+
+Formato de output para los resultados:
+
+| `--format` | Output |
+|---|---|
+| `pretty` (default) | Legible para humanos con colores |
+| `json` | Un objeto JSON por bloque; summary final al final |
+| `junit` | XML JUnit, apto para reports de tests en CI |
+| `tap` | Formato TAP v13 |
+
+Ejemplo JSON:
+
+```json
+{"block":"login","status":200,"time_ms":143,"passed":true}
+{"block":"me","status":200,"time_ms":89,"passed":true,"deps":["login"]}
+{"summary":{"total":2,"passed":2,"failed":0,"total_time_ms":234}}
+```
+
+## Uso en CI
+
+Ejemplo de GitHub Actions:
+
+```yaml
+- name: Smoke tests against staging
+  run: |
+    httui-tui run runbooks/smoke-*.md \\
+      --env staging \\
+      --format junit \\
+      > junit.xml
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+- name: Publish results
+  uses: actions/upload-artifact@v4
+  with:
+    name: smoke-results
+    path: junit.xml
+```
+
+**Manejo de secretos en CI**: el keychain no está disponible en
+runners de CI. Setea los secretos vía env vars; el resolver del
+keychain cae a env vars que matcheen el nombre de la key:
+
+```yaml
+env:
+  PG_STAGING_PASSWORD: ${{ secrets.PG_STAGING_PASSWORD }}
+  PAYMENTS_API_TOKEN: ${{ secrets.PAYMENTS_API_TOKEN }}
+```
+
+## TUI interactivo
+
+Sin `run`, obtienes el TUI interactivo completo — file tree, editor,
+ejecución de bloques, todo en la terminal. El keymap mayormente
+mirrorea el desktop (vim-friendly).
+
+### Keymap (interactivo)
+
+| Tecla | Acción |
+|---|---|
+| `Tab` / `Shift+Tab` | Mover focus entre panes |
+| `Enter` | Ejecutar bloque bajo el cursor |
+| `Esc` | Cancelar bloque en ejecución |
+| `g` luego `s` | Abrir modal de settings del bloque |
+| `g` luego `h` | Ir al file tree |
+| `g` luego `e` | Ir al editor |
+| `g` luego `c` | Ir al chat |
+| `:` | Command palette |
+| `q` | Salir |
+
+El TUI evita chords `Alt+<digit>` (colisiona con tmux/Aerospace).
+Usa prefix `g` o letras solas.
+
+### Command palette (`:`)
+
+```
+:run                Ejecutar bloque bajo el cursor
+:run-all            Ejecutar cada bloque del archivo activo
+:env staging        Cambiar entorno
+:open path/to.md    Abrir archivo
+:save               Save (el autosave está on; rara vez necesario)
+:vault              Cambiar vault
+:quit / :q          Salir
+```
+
+La mayoría de los comandos también son keybindings; el palette es
+para los ocasionales o discovery.
+
+## Empty-state en máquina fresca
+
+`httui-tui` en first-run en una máquina sin vault te tira al flujo
+de empty-state:
+
+```
+Welcome to httui
+  [n] New vault
+  [c] Clone vault from git
+  [o] Open existing folder
+  [q] Quit
+```
+
+Mismo backend que el empty-state del desktop — el vault se reconoce
+por los mismos archivos (ve
+[Estructura del vault](/es/docs/reference/vault-layout)).
+
+## Config
+
+El TUI lee el mismo `user.toml` que el desktop. Theme, vim mode,
+overrides del keymap — todo compartido. Sobreescribe los bits
+específicos del TUI bajo una tabla `[tui]`:
+
+```toml
+[tui]
+theme = "tokyonight"             # nombre de palette; defaultea a "auto"
+font_powerline = false           # ponlo true si tu terminal renderiza glyphs de powerline
+```
+
+## Flags útiles
+
+```bash
+httui-tui --help                 # ayuda completa
+httui-tui --version              # versión + git SHA
+httui-tui --vault <path>         # override del vault activo solo para esta sesión
+httui-tui --headless             # deshabilita UI interactiva (úsalo con `run`)
+httui-tui --debug                # log a stderr
+```
+
+## Relacionado
+
+- **[Atajos de teclado](/es/docs/reference/shortcuts)** — keymap del desktop (mayormente mirroreado en TUI)
+- **[Verifica la forma de una respuesta](/es/docs/how-to/assertions)** — sintaxis `# expect:` + patrones de CI
+- **[Estructura del vault](/es/docs/reference/vault-layout)** — a qué apunta `--vault <path>`

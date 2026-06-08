@@ -1,0 +1,201 @@
+---
+title: Agrega una base de datos a tu runbook
+description: Conecta SQLite, crea una tabla, consulta filas y encadena un resultado SQL en una request HTTP — sin servicio externo requerido.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Este tutorial te guía conectando tu primera base de datos a httui y
+mezclando bloques SQL con bloques HTTP en el mismo runbook — el flujo
+que hace que "verifica que staging coincida con la DB" sea una tarea
+de 30 segundos en vez de tres herramientas y una shell.
+
+Vamos a usar **SQLite** así no necesitas instalar Postgres ni correr
+docker — httui crea el archivo `.sqlite` en el primer run.
+
+**Tiempo:** ~15 minutos · **Prerequisitos:** terminado el
+[Quickstart](/es/docs/tutorials/quickstart).
+
+## 1. Agrega la conexión
+
+En el sidebar, haz clic en el **ícono de base de datos** (Connections).
+En el panel de la derecha:
+
+<Steps>
+1. Haz clic en **+ Add connection**.
+2. Elige **SQLite** en el dropdown **Type**.
+3. **Name:** `local` — mantenlo corto, esto pasa a ser parte del nombre
+   de la fence del bloque.
+4. **Path:** `./scratch.sqlite` (relativo a la raíz del vault).
+5. Haz clic en **Save**.
+</Steps>
+
+Eso escribe un bloque a `connections.toml`:
+
+```toml
+[connections.local]
+type = "sqlite"
+path = "./scratch.sqlite"
+```
+
+<Aside title="¿Por qué un archivo de config y no una base de datos UI?">
+  Todo lo portable de tu vault vive en texto plano — runbooks `.md`,
+  `connections.toml`, `envs/*.toml`. Pushea a git, clona en otra
+  máquina, el mismo vault funciona. Los secretos y los overrides
+  por máquina se quedan fuera de git a propósito.
+</Aside>
+
+## 2. Crea una tabla (bloque DB — mutación)
+
+Crea `runbooks/users-check.md`. Agrega un título corto y una intro:
+
+````markdown
+# Users sanity check
+
+SQLite local para imitar la tabla de users que vamos a consultar en staging.
+````
+
+Luego agrega un **bloque DB** (la fence es `db-<connection-name>`):
+
+````markdown
+```db-local
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+);
+
+INSERT INTO users (name, email)
+VALUES
+  ('Alice',   'alice@example.com'),
+  ('Bob',     'bob@example.com'),
+  ('Charlie', 'charlie@example.com')
+ON CONFLICT DO NOTHING;
+```
+````
+
+La fence es `db-local` — eso es `db-` + el nombre de la conexión del
+paso 1. Cada conexión auto-registra su propio block type.
+
+Hit **`Cmd+Enter`** en el bloque. **Vas a ver un banner primero:**
+
+> ⚠ Este bloque contiene `INSERT`. ¿Ejecutar de todos modos?
+
+Eso es el **mutation guard** — el scanner SQL de httui flageó una
+sentencia destructiva y está preguntando antes de dejarte reescribir
+producción accidentalmente. Haz clic en **Run once**. El bloque
+ejecuta y ves "3 rows affected".
+
+<Aside type="caution" title="El mutation guard es estructural">
+  No es una regex sobre la primera palabra — httui parsea el SQL con
+  un scanner. Así que `UPDATE` dentro de un comentario no es flageado,
+  pero un `DELETE` legítimo enterrado después de un `SELECT` sí. Puedes
+  deshabilitarlo por bloque vía la toolbar (engranaje → "Skip mutation
+  prompt") si confías en el runbook.
+</Aside>
+
+## 3. Consúltala de vuelta (bloque DB — SELECT)
+
+Agrega un bloque SELECT:
+
+````markdown
+```db-local alias=users_list
+SELECT id, name, email, created_at
+FROM users
+ORDER BY id
+```
+````
+
+Hit `Cmd+Enter`. La respuesta es una **grid virtualizada** — columnas
+sorteables, badge de tipo por columna, botón copy-as-CSV. Prueba el
+sort del header de columna y nota que es instantáneo incluso en 100k
+filas (la grid es windowed).
+
+El `alias=users_list` importa para el siguiente paso.
+
+## 4. Encadena SQL → HTTP
+
+Ahora la magia: usa una fila SQL como input a un bloque HTTP. Agrega:
+
+````markdown
+```http alias=user_detail
+GET https://httpbin.org/anything/users/{{users_list.row[0].id}}
+Accept: application/json
+
+# expect:
+#   status == 200
+#   body.url contains "/users/1"
+```
+````
+
+Qué hace `{{users_list.row[0].id}}`:
+
+| Parte | Significa |
+|---|---|
+| `users_list` | el alias del bloque SQL de arriba |
+| `row[0]` | primera fila del result set |
+| `.id` | columna `id` de esa fila |
+
+Hit **`Cmd+Enter`** en `user_detail`. httui:
+
+1. Ve la referencia → ejecuta `users_list` primero (ya cacheado → instantáneo).
+2. Sustituye `1` por `{{users_list.row[0].id}}` → la URL pasa a ser
+   `.../users/1`.
+3. Envía la request y verifica la respuesta.
+
+Acabas de encadenar una consulta SQL en una request HTTP real. El
+mismo patrón funciona al revés — usa el valor de una respuesta HTTP
+como parámetro SQL:
+
+````markdown
+```db-local
+SELECT * FROM users WHERE id = {{user_detail.body.json.id}}
+```
+````
+
+<Aside type="tip" title="Las refs en SQL siempre son bound, nunca interpoladas">
+  Cuando usas `{{...}}` en un bloque SQL, httui convierte la
+  referencia en un **bind parameter** (`$1` para Postgres, `?` para
+  SQLite/MySQL) — nunca string-interpolada. Cero superficie de SQL
+  injection, incluso con valores controlados por el usuario fluyendo
+  desde respuestas HTTP.
+</Aside>
+
+## 5. EXPLAIN ANALYZE (el bonus)
+
+Agrega un bloque más:
+
+````markdown
+```db-local
+EXPLAIN QUERY PLAN
+SELECT * FROM users WHERE id = 1
+```
+````
+
+Hit `Cmd+Enter`. SQLite devuelve el plan; para **Postgres / MySQL** el
+mismo bloque en esos drivers renderiza el EXPLAIN ANALYZE como un
+**tree view** con scans secuenciales lentos resaltados en rojo. Click
+derecho en cualquier nodo para "Copy as TEXT".
+
+## Listo
+
+Tu runbook ahora tiene el loop:
+
+```mermaid
+graph LR
+  A[users_list - SQL] -- row[0].id --> B[user_detail - HTTP]
+  B -- assert --> C[passes/fails]
+```
+
+Committéalo. Abre el mismo vault mañana, hit **Run all**, y vas a saber
+en 500ms si la DB y la API siguen de acuerdo.
+
+## Qué sigue
+
+- **[Referencias entre bloques — sintaxis completa](/es/docs/reference/block-references)** — `{{$prev}}`,
+  `{{headers.X}}`, JSON paths, scoping
+- **[Conceptos → conexiones + secretos](/es/docs/how-to/environments)** — cambia
+  `local` por un Postgres real con contraseña en el OS keychain
+- **[Arquitectura](/es/docs/architecture)** — cómo funcionan SQL safety
+  + resolución de cadenas por dentro

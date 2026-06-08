@@ -1,0 +1,199 @@
+---
+title: Add a database to your runbook
+description: Connect SQLite, create a table, query rows, and chain a SQL result into an HTTP request — no external service required.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+This tutorial walks you through connecting your first database to
+httui and mixing SQL blocks with HTTP blocks in the same runbook —
+the workflow that makes "check staging matches the DB" a 30-second
+task instead of three tools and a shell.
+
+We'll use **SQLite** so you don't need to install Postgres or run
+docker — httui creates the `.sqlite` file on first run.
+
+**Time:** ~15 minutes · **Prereqs:** finished
+[Quickstart](/docs/tutorials/quickstart).
+
+## 1. Add the connection
+
+In the sidebar, click the **database icon** (Connections). On the
+right panel:
+
+<Steps>
+1. Click **+ Add connection**.
+2. Pick **SQLite** in the **Type** dropdown.
+3. **Name:** `local` — keep it short, this becomes part of the block
+   fence name.
+4. **Path:** `./scratch.sqlite` (relative to your vault root).
+5. Click **Save**.
+</Steps>
+
+That writes one block to `connections.toml`:
+
+```toml
+[connections.local]
+type = "sqlite"
+path = "./scratch.sqlite"
+```
+
+<Aside title="Why a config file, not a UI database?">
+  Everything portable about your vault lives in plain text — `.md`
+  runbooks, `connections.toml`, `envs/*.toml`. Push to git, clone on
+  another machine, same vault works. Secrets and per-machine
+  overrides stay outside git on purpose.
+</Aside>
+
+## 2. Create a table (DB block — mutation)
+
+Create `runbooks/users-check.md`. Add a short title and intro:
+
+````markdown
+# Users sanity check
+
+Local SQLite to mimic the users table we'll query in staging.
+````
+
+Then add a **DB block** (the fence is `db-<connection-name>`):
+
+````markdown
+```db-local
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+);
+
+INSERT INTO users (name, email)
+VALUES
+  ('Alice',   'alice@example.com'),
+  ('Bob',     'bob@example.com'),
+  ('Charlie', 'charlie@example.com')
+ON CONFLICT DO NOTHING;
+```
+````
+
+The fence is `db-local` — that's `db-` + the connection name from
+step 1. Each connection auto-registers its own block type.
+
+Hit **`Cmd+Enter`** on the block. **You'll see a banner first:**
+
+> ⚠ This block contains `INSERT`. Run anyway?
+
+That's the **mutation guard** — httui's SQL scanner flagged a
+destructive statement and is asking before letting you accidentally
+rewrite production. Click **Run once**. The block runs and you see
+"3 rows affected".
+
+<Aside type="caution" title="Mutation guard is structural">
+  It's not a regex on the first word — httui parses the SQL with a
+  scanner. So `UPDATE` inside a comment is not flagged, but a
+  legitimate `DELETE` buried after a `SELECT` is. You can disable it
+  per-block via the toolbar (gear → "Skip mutation prompt") if you
+  trust the runbook.
+</Aside>
+
+## 3. Query it back (DB block — SELECT)
+
+Add a SELECT block:
+
+````markdown
+```db-local alias=users_list
+SELECT id, name, email, created_at
+FROM users
+ORDER BY id
+```
+````
+
+Hit `Cmd+Enter`. The response is a **virtualised grid** — sortable
+columns, type badge per column, copy-as-CSV button. Try the column
+header sort and notice it's instant even on 100k rows (the grid is
+windowed).
+
+The `alias=users_list` matters for the next step.
+
+## 4. Chain SQL → HTTP
+
+Now the magic: use a SQL row as input to an HTTP block. Add:
+
+````markdown
+```http alias=user_detail
+GET https://httpbin.org/anything/users/{{users_list.row[0].id}}
+Accept: application/json
+
+# expect:
+#   status == 200
+#   body.url contains "/users/1"
+```
+````
+
+What `{{users_list.row[0].id}}` does:
+
+| Part | Means |
+|---|---|
+| `users_list` | the alias of the SQL block above |
+| `row[0]` | first row of the result set |
+| `.id` | column `id` of that row |
+
+Hit **`Cmd+Enter`** on `user_detail`. httui:
+
+1. Sees the reference → runs `users_list` first (already cached → instant).
+2. Substitutes `1` for `{{users_list.row[0].id}}` → the URL becomes
+   `.../users/1`.
+3. Sends the request and asserts the response.
+
+You just chained a SQL query into a real HTTP request. Same pattern
+works in reverse — use an HTTP response value as a SQL parameter:
+
+````markdown
+```db-local
+SELECT * FROM users WHERE id = {{user_detail.body.json.id}}
+```
+````
+
+<Aside type="tip" title="SQL refs are always bound, never interpolated">
+  When you use `{{...}}` in a SQL block, httui converts the reference
+  to a **bind parameter** (`$1` for Postgres, `?` for SQLite/MySQL) —
+  never string-interpolated. Zero SQL injection surface, even with
+  user-controlled values flowing in from HTTP responses.
+</Aside>
+
+## 5. EXPLAIN ANALYZE (the bonus)
+
+Add one more block:
+
+````markdown
+```db-local
+EXPLAIN QUERY PLAN
+SELECT * FROM users WHERE id = 1
+```
+````
+
+Hit `Cmd+Enter`. SQLite returns the plan; for **Postgres / MySQL**
+the same block on those drivers renders the EXPLAIN ANALYZE as a
+**tree view** with slow sequential scans highlighted in red.
+Right-click any node for "Copy as TEXT".
+
+## You're done
+
+Your runbook now has the loop:
+
+```mermaid
+graph LR
+  A[users_list - SQL] -- row[0].id --> B[user_detail - HTTP]
+  B -- assert --> C[passes/fails]
+```
+
+Commit it. Open the same vault tomorrow, hit **Run all**, and you'll
+know in 500ms whether the DB and the API still agree.
+
+## What's next
+
+- **[Block references — full syntax](/docs/reference/block-references)** — `{{$prev}}`,
+  `{{headers.X}}`, JSON paths, scoping
+- **[Concepts → connections + secrets](/docs/how-to/environments)** — switch
+  `local` for a real Postgres with password in the OS keychain
+- **[Architecture](/docs/architecture)** — how the SQL safety + chain
+  resolution actually works under the hood

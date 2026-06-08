@@ -1,0 +1,199 @@
+---
+title: Config files
+description: Complete TOML schemas for connections.toml, envs/*.toml, user.toml, and workspace.toml.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+All httui config is plain TOML. This page is the schema reference
+for every file.
+
+## `connections.toml` (vault root, committed)
+
+One `[connections.<name>]` table per connection. The `<name>` is
+the suffix on DB-block fence languages — `[connections.local]`
+makes `db-local` valid.
+
+### SQLite
+
+```toml
+[connections.local]
+type = "sqlite"
+path = "./scratch.sqlite"           # relative to vault root, or absolute
+```
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `type` | string | yes | `"sqlite"` |
+| `path` | string | yes | File auto-created on first use |
+
+### PostgreSQL
+
+```toml
+[connections.pg-staging]
+type = "postgres"
+host = "pg-staging.acme.local"
+port = 5432
+database = "payments"
+user = "{{keychain:pg-staging:user}}"
+password = "{{keychain:pg-staging:password}}"
+ssl_mode = "require"
+search_path = ["public", "billing"]
+```
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `type` | string | yes | `"postgres"` |
+| `host` | string | yes | Hostname or IP |
+| `port` | int | no (default 5432) | |
+| `database` | string | yes | DB name |
+| `user` | string | yes | Username; commonly `{{keychain:...}}` |
+| `password` | string | yes | Password; commonly `{{keychain:...}}` |
+| `ssl_mode` | string | no (default `"prefer"`) | `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
+| `search_path` | string[] | no | `SET search_path = ...` on each query |
+
+### MySQL
+
+```toml
+[connections.mysql-stage]
+type = "mysql"
+host = "mysql-stage.acme.local"
+port = 3306
+database = "billing"
+user = "{{keychain:mysql-stage:user}}"
+password = "{{keychain:mysql-stage:password}}"
+```
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `type` | string | yes | `"mysql"` |
+| `host`, `port`, `database`, `user`, `password` | same as postgres | |
+| `ssl_disabled` | bool | no | `true` to skip SSL |
+
+### Keychain references
+
+`{{keychain:<scope>:<key>}}` resolves at runtime to a value stored
+in the OS keychain under `httui::<scope>::<key>`. See
+[Store secrets](/docs/how-to/secrets) for the setup flow.
+
+## `envs/<name>.toml` (vault root, committed)
+
+One file per environment. The filename (minus `.toml`) is the env
+name visible in the TopBar selector.
+
+```toml
+# envs/staging.toml
+[vars]
+BASE_URL = "https://staging-api.example.com"
+TIMEOUT_MS = 30000
+ADMIN_TOKEN = "__KEYCHAIN__"            # value in keychain
+LOG_LEVEL = "info"
+
+[meta]
+description = "Staging environment — points at acme-staging cluster"
+color = "#f4be4f"                       # TopBar pill color
+```
+
+| Section | Required | Notes |
+|---|---|---|
+| `[vars]` | yes | Flat key-value table. Keys referenced as `{{KEY}}` (no dots) in any block |
+| `[meta]` | no | Optional metadata for the UI |
+| `[meta].description` | no | Tooltip on the env selector |
+| `[meta].color` | no | Hex color for the env pill |
+
+### Secret values
+
+Any value marked secret in the Environment manager UI writes
+`__KEYCHAIN__` as the sentinel here. The real value lives in the OS
+keychain under `httui::env::<env-name>::<key>`.
+
+### Override file (`.local.toml`, gitignored)
+
+`envs/staging.local.toml` overrides keys from `envs/staging.toml`:
+
+```toml
+# envs/staging.local.toml  (gitignored)
+[vars]
+BASE_URL = "http://localhost:15432"     # your SSH tunnel
+```
+
+Merge order: shared `.toml` first, then `.local.toml` keys
+override. Per-machine overrides for tunnels and dev DBs.
+
+## `user.toml` (vault root, gitignored)
+
+This-machine UI preferences.
+
+```toml
+[ui]
+theme = "dark"                          # dark | light | auto
+vim_mode = false
+sidebar_width = 280
+chat_panel_open = false
+git_side_panel_open = true
+git_commit_template = "{{notes}}\\n\\n{{count}} files · {{date}}"
+
+[editor]
+font_size = 14
+font_family = "Geist Mono"
+tab_size = 2
+
+[chat]
+sidecar_path = "auto"                   # or absolute path
+default_cwd = "vault"                   # vault | last-used | <path>
+```
+
+Most keys are also editable via Settings panels — `user.toml` is
+the persisted backing.
+
+## `.httui/workspace.toml` (vault root, usually committed)
+
+Last-active editor state. See
+[Vault layout → workspace.toml](/docs/reference/vault-layout#httuiworkspacetoml).
+
+```toml
+active_file = "runbooks/auth-flow.md"
+active_env = "staging"
+
+[panes]
+layout = "horizontal"
+ratio = 0.5
+
+[[panes.left.tabs]]
+file = "runbooks/auth-flow.md"
+
+[[panes.right.tabs]]
+file = "runbooks/db-checks.md"
+```
+
+## TOML conventions httui follows
+
+- **Comments** with `#` — preserved on read/write.
+- **Order** preserved — when httui rewrites a file, it keeps your
+  layout unless reformatting is requested.
+- **String escaping** — standard TOML. Use `"""triple"""` for
+  multi-line values (rare).
+- **Date/time** — TOML's native datetime format
+  (`2026-06-06T14:30:00Z`).
+
+## Editing config from the UI vs hand-editing
+
+Both are first-class. You can:
+
+- Use the Environment manager + Connection form to write through
+  the UI.
+- Hand-edit `connections.toml` in any editor; httui's file watcher
+  picks up changes and reloads.
+
+If both happen at once (UI write + external edit), you'll get the
+[conflict banner](/docs/reference/vault-layout#file-watching) and
+choose which version wins.
+
+## Common errors
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| "Connection X not found" in a `db-X` block | `[connections.X]` missing or typo | Check `connections.toml`; reload via TopBar |
+| Env switcher shows nothing | No `envs/*.toml` files | Create one — even an empty `[vars]` works |
+| `{{KEY}}` resolves literally | Active env doesn't have the key | Add to `envs/<active>.toml` or override `.local.toml` |
+| TOML parse error on startup | Syntax error in a config | Check the error banner; line/column included |

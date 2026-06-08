@@ -1,0 +1,160 @@
+---
+title: Local-first
+description: Why httui has no cloud, no telemetry, no account — your runbooks, your data, your machine.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+httui is a **desktop app** that talks to your machine's filesystem,
+keychain, and database drivers. There is no httui cloud, no account
+to create, no telemetry beacon, no usage tracking. This page
+explains why and what that means in practice.
+
+## What "local-first" means here
+
+| Aspect | httui's stance |
+|---|---|
+| **Where your runbooks live** | A folder on your disk you chose |
+| **Where the sync happens** | Git, run by you (push to GitHub, GitLab, self-hosted, whatever) |
+| **Where secrets live** | OS keychain on your machine (Keychain.app, Credential Manager, Secret Service) |
+| **Where the cache lives** | A `notes.db` SQLite file in the vault folder |
+| **Telemetry / analytics** | None. Zero. The app never phones home for analytics. |
+| **License servers / activation** | None. Open source, MIT — you can read every line. |
+| **Auto-update check** | Yes — fetches from GitHub Releases. Disable in Settings. |
+
+## What httui DOES talk to the network for
+
+To be honest about the network calls the app makes when **you** ask
+for them:
+
+| Action | Network call |
+|---|---|
+| You run an HTTP block | The request you wrote, to wherever you pointed it |
+| You connect to a DB | The DB you configured, with the creds in your keychain |
+| You use the chat panel | Claude API (via the Anthropic SDK), uses your `ANTHROPIC_API_KEY` |
+| You check for updates | `api.github.com/repos/httuicom/httui/releases/latest` |
+| You install from script | `httui.com/install.sh` (one-time) |
+
+That's the complete list. There is no background heartbeat, no
+"how often do users click X" event stream, no crash reporter that
+hides what it sends.
+
+## Why this matters for runbooks specifically
+
+Runbooks contain **production credentials and incident details**.
+Two reasons that makes local-first non-negotiable:
+
+### 1. Sensitive data shouldn't traverse a third party
+
+Your refund-flow runbook references the API token that can issue
+refunds. Your incident post-mortem runbook contains the SQL
+queries that revealed the breach. These don't belong in a
+SaaS-vendor's database, indexed and replicated across regions,
+subject to whatever sub-processor list they updated last month.
+
+When httui resolves `{{REFUND_TOKEN}}`, it reads from your OS
+keychain and substitutes the value into the request. The token
+exists for ~200 microseconds in process memory, never crosses a
+network boundary except into the API endpoint **you** chose.
+
+### 2. The vault outlives the tool
+
+httui might fail as a product. The runbooks in your `runbooks/`
+folder shouldn't die with it.
+
+| If httui shuts down tomorrow | What you have |
+|---|---|
+| Your runbooks | `.md` files in your git repo, readable in any editor |
+| Your secrets | Still in your OS keychain, manageable via system UI |
+| Your connection list | A plain `connections.toml`, still parseable by hand |
+| The execution history | Lost (it was in `notes.db`), but that's a cache |
+
+Compare with "a Postman cloud account" — collections live in their
+service. If they vanish or change pricing, the collections vanish or
+get held ransom.
+
+## How sync works without a server
+
+httui uses **git** as the sync layer. You push the vault to any
+git remote — GitHub, GitLab, Gitea, a bare repo on a VPS, Tailscale
+self-host. Your teammate clones it. Now you both have it.
+
+| Concern | git answer |
+|---|---|
+| Collaboration | Branches, PRs, code review |
+| History | `git log`, `git blame`, `git revert` |
+| Conflict resolution | Standard 3-way merge — diff is just text |
+| Permissions | Whatever your git host gives you |
+| Audit log | Every change is a signed commit |
+
+The vault has an opinionated git workflow built into the right-side
+**Git panel** — stage, commit, sync (`pull --ff-only` + `push`)
+without leaving the editor. But you can also just use `git` from
+the terminal — same files.
+
+## What "no telemetry" actually means
+
+We're explicit because most products that say "no telemetry" mean
+"no telemetry from the marketing site" while still phoning home
+from the desktop app via crash reporters or update beacons.
+
+httui:
+
+- **No Sentry / Bugsnag / Rollbar** — crashes produce a local log file you can attach to a GitHub issue if you want
+- **No Plausible / Fathom / GA** on the desktop binary
+- **No "anonymous usage" counter** for which menus you click
+- **No A/B testing framework**
+- **No feature-flag service** — flags ship in the binary, no runtime fetch
+
+The update check (`api.github.com/repos/httuicom/httui/releases/latest`)
+is a single GET that GitHub sees, and it's behind a Settings
+toggle.
+
+## What about the chat panel?
+
+If you use the chat panel, the **text of your conversation** plus
+the **content of files the chat reads** travel to Anthropic's API
+(Claude). That's the model serving the responses; there's no
+intermediate httui server.
+
+Permissions:
+
+- Bash commands always require a per-call OK
+- Edit/Write outside the session `cwd` are hard-denied (no prompt)
+- Read inside the session `cwd` is auto-allowed
+- Other tools: prompt with Once / Session / Always scope
+
+Permission rules are persisted **in your `notes.db`**, not in any
+cloud. See [Chat & MCP](/docs/chat-and-mcp) for the full model.
+
+## What about analytics for the site (httui.com)?
+
+`httui.com` (the site you're reading this on) is a static site on
+GitHub Pages. There's no JavaScript that loads an analytics SDK.
+The only outbound calls a browser makes are to fetch fonts (Google
+Fonts CDN) and Mermaid for diagrams (jsdelivr CDN).
+
+If you don't want even those, the site degrades gracefully — fonts
+fall back to system, Mermaid blocks show as code text.
+
+## The trade-off
+
+Local-first is not free. You give up:
+
+- **One-click team sharing**. You need a git host. (Most teams already have one.)
+- **"Open in browser" feel**. The desktop binary is ~80 MB. (Same as Postman / Insomnia / Bruno.)
+- **A vendor's SRE on call**. If you self-host the git remote, that's on you.
+
+What you get:
+
+- **Your data, on your disks, accessible without an internet connection**
+- **No cost growth as your team grows** — the desktop app is free
+- **No vendor lock-in, no migration cost**
+- **Auditable code path** — read the source on GitHub
+
+## Related
+
+- **[The mental model](/docs/explanation/mental-model)** — what a runbook *is*
+- **[Vault layout](/docs/reference/vault-layout)** — what lives where on disk
+- **[Store secrets](/docs/how-to/secrets)** — keychain integration details
+- **[Chat & MCP](/docs/chat-and-mcp)** — the only AI-related network calls

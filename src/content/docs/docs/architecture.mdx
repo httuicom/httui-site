@@ -71,7 +71,7 @@ respected on Linux; OS-native config dir elsewhere).
 | Runbooks (`.md`) | repo | yes |
 | Connection definitions | `connections.toml` | yes |
 | Connection passwords | OS keychain | no (per machine) |
-| Env vars (non-secret) | `envs/<name>.toml` `[vars]` | yes |
+| Env vars (non-secret) | `envs/&lt;name&gt;.toml` `[vars]` | yes |
 | Env vars (secret) | OS keychain (TOML carries `{{keychain:...}}` ref) | no |
 | Personal overrides | `*.local.toml` | no (gitignored) |
 | Workspace defaults | `.httui/workspace.toml` | yes |

@@ -1,31 +1,90 @@
 ---
 title: Documentation
-description: Everything you need to use httui — from install to advanced runbooks.
+description: Tutorials, reference, and explanation for httui — the markdown editor for debugging APIs and databases.
 ---
 
-Welcome to the httui documentation. Pick a path:
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-## Getting started
+The httui docs are organised in four sections, depending on what
+you're trying to do.
 
-- **[Getting started](/docs/getting-started)** — from install to first HTTP + SQL block. ~10 minutes.
-- **[Concepts](/docs/concepts)** — vaults, blocks, references, environments, secrets.
-- **[Blocks](/docs/blocks)** — HTTP, SQL (PG/MySQL/SQLite), diff, standalone.
+## Start here
 
-## Architecture
+<CardGrid>
+  <LinkCard
+    title="Quickstart"
+    href="/docs/tutorials/quickstart"
+    description="Install httui, create a vault, run your first HTTP block. ~10 minutes."
+  />
+  <LinkCard
+    title="Build a chained API test"
+    href="/docs/tutorials/chained-api"
+    description="Login → capture token → hit a protected endpoint → assert. The httui workflow in one runbook."
+  />
+  <LinkCard
+    title="Add a database"
+    href="/docs/tutorials/add-database"
+    description="SQLite + mutation guard + chain SQL into HTTP. No external services required."
+  />
+</CardGrid>
 
-- **[Architecture overview](/docs/architecture)** — frontend, backend, sidecar, data model.
-- **[Performance](/docs/performance)** — invariants, budgets, profiling.
-- **[Chat & MCP](/docs/chat-and-mcp)** — chat panel, sidecar, MCP server, permissions.
+## The four sections
 
-## Releases
+<CardGrid>
+  <Card title="Tutorials" icon="rocket">
+    Step-by-step guides that take you from zero to a working runbook.
+    **Start here if you're new.**
 
-- **[Release process](/docs/releases)** — how releases are cut, signed, and announced.
-- **[Migration guide](/docs/migration)** — upgrading between major versions.
+    - [Quickstart](/docs/tutorials/quickstart)
+    - [Chained API test](/docs/tutorials/chained-api)
+    - [Add a database](/docs/tutorials/add-database)
+  </Card>
+  <Card title="How-to" icon="setting">
+    Solve a specific task in 1–3 minutes.
 
-## Coming soon
+    - [Use environment variables](/docs/how-to/environments)
+    - [Store secrets in the keychain](/docs/how-to/secrets)
+    - [Reference values between blocks](/docs/how-to/references)
+    - [Assert response shape](/docs/how-to/assertions)
+  </Card>
+  <Card title="Reference" icon="document">
+    Look up the exact syntax for blocks, references, and config files.
 
-- **httui-lang** — syntax, LSP, tree-sitter, VS Code / Neovim / Zed / Helix integrations.
-- **Editor** — markdown editor, vim mode, slash commands, BLOCKS view.
+    - [HTTP block](/docs/reference/http-block)
+    - [DB block](/docs/reference/db-block)
+    - [Block references](/docs/reference/block-references)
+    - [Vault layout](/docs/reference/vault-layout)
+    - [Config files](/docs/reference/config-files)
+    - [Shortcuts](/docs/reference/shortcuts)
+    - [CLI (httui-tui)](/docs/reference/cli)
+  </Card>
+  <Card title="Explanation" icon="open-book">
+    How httui works under the hood — architecture, performance, chat
+    integration.
 
-The canonical source for the docs lives in
-[the GitHub repo](https://github.com/httuicom/httui/tree/main/docs) — this site mirrors it.
+    - [The mental model](/docs/explanation/mental-model)
+    - [Why markdown?](/docs/explanation/why-markdown)
+    - [Local-first](/docs/explanation/local-first)
+    - [How it works under the hood](/docs/explanation/how-it-works)
+    - [Architecture (deep dive)](/docs/architecture)
+  </Card>
+</CardGrid>
+
+## Use httui anywhere
+
+<CardGrid>
+  <LinkCard
+    title="httui-lang"
+    href="/docs/httui-lang"
+    description="The .httui block format as a real language — tree-sitter grammar + LSP server + extensions for VS Code, Neovim, Zed, and Helix."
+  />
+</CardGrid>
+
+## What's missing?
+
+- **PT-BR / ES translations** — only Quickstart is partly translated.
+  The rest falls back to English.
+
+Want to contribute? Docs live at
+[`httuicom/httui-site`](https://github.com/httuicom/httui-site) — PRs
+welcome.

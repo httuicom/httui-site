@@ -1,0 +1,147 @@
+---
+title: The mental model
+description: A runbook is documentation and a tool at the same time. Understanding this distinction makes httui click.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+If you've used Postman, Insomnia, or a JetBrains `.http` file, you
+already know how to make HTTP requests from an editor. httui's
+twist isn't *what* you can do — it's *what each file is*. This page
+explains the mental model that drives every design decision.
+
+## The big idea
+
+A **runbook** is one `.md` file that is **simultaneously**:
+
+| Role | What it means |
+|---|---|
+| **Documentation** | Markdown prose — headings, lists, code, links — readable in any markdown viewer, diffable in git, indexable by Obsidian |
+| **A tool** | Inside it, fenced blocks (```http, ```db-pg) **execute** — hit real APIs, query real databases, capture responses |
+
+The same paragraph that explains "we hit `/auth/login` first to get a
+token" sits **next to** the actual HTTP block that does it. When the
+shape changes, you fix one file, not three (docs, Postman collection,
+shell script).
+
+## Why this collapses four tools
+
+Most teams have separate places for each of:
+
+| Tool | What it holds |
+|---|---|
+| Notion / Confluence | The narrative — "this is how the payments flow works" |
+| Postman / Insomnia | The HTTP requests, in a proprietary JSON file |
+| DBeaver / TablePlus | The SQL queries, in a saved-queries panel |
+| A `playbook.sh` | The chain — "first call A, then B with the token from A" |
+
+Each tool has its own format, its own state, its own auth. The
+**narrative drifts** from the requests, which drift from the
+queries, which drift from the script.
+
+A runbook is **one .md file** that contains all four. Commit it to
+git, your team has the same source of truth — the docs literally
+*are* the tool.
+
+## The blocks model
+
+Inside a runbook, **blocks** are the executable units. Each is a
+fenced code block with a special language:
+
+| Fence | What runs |
+|---|---|
+| `\`\`\`http` | One HTTP request |
+| `\`\`\`db-&lt;conn&gt;` | One SQL query against connection `&lt;conn&gt;` |
+| `\`\`\`diff` | Standalone diff viewer (between two text panes) |
+
+A block's **body** is just text — an HTTP message, a SQL statement.
+Click the ▶ button (or `Cmd+Enter`) and httui sends the request,
+shows the response inline below the block.
+
+Blocks **reference** each other via `{{alias.body.field}}`. The
+dependency graph is automatic — running block B that references A
+runs A first.
+
+## The runbook is the artifact
+
+A runbook is **the smallest unit of value** in httui. Some examples:
+
+| Runbook | What it does |
+|---|---|
+| `smoke-staging.md` | 5 HTTP blocks against staging, each with `# expect:` — your CI smoke test |
+| `debug-2026-06-issue.md` | Notes + curl chains used to debug a specific incident, archived for future post-mortems |
+| `payments-flow.md` | The live spec for the payments flow — narrative + the actual calls, kept in sync because they live together |
+| `daily-checks.md` | 12 blocks you run every morning to verify the dev env is healthy |
+
+Each one is **a markdown file in a git repo**. Pull request review.
+Diff between commits. Code-review the API spec.
+
+## Vault: the workspace
+
+A **vault** is a folder that holds many runbooks plus shared
+configuration:
+
+```
+~/payments-runbooks/             # the vault
+├── runbooks/
+│   ├── smoke-staging.md         # runbook
+│   ├── debug-incident-42.md     # runbook
+│   └── flows/
+│       ├── refund.md            # runbook
+│       └── chargeback.md        # runbook
+├── connections.toml             # shared DB connection setups
+└── envs/
+    ├── staging.toml             # variables per env
+    └── prod.toml
+```
+
+When you `git clone` the vault on another machine, **everything
+needed to run the runbooks travels with it** — except your secrets
+(those stay in your OS keychain, see
+[Store secrets](/docs/how-to/secrets)).
+
+## The execution model in one paragraph
+
+You hit `Cmd+Enter` on a block. httui parses the body, resolves all
+`{{...}}` references (running upstream blocks if needed —
+auto-execution from the DAG), substitutes the resolved values,
+dispatches the request, and streams the response back to a panel
+below the block. The response is cached by content hash, so the
+next time you reference this block from somewhere else, it's
+instant unless the inputs changed.
+
+That's it. No build step, no compile, no "save then run from
+another window". Inline edit → inline run → inline result.
+
+## The narrative drift problem (and the fix)
+
+The problem with the four-tools world:
+
+```
+Tuesday:
+  Wiki:        "POST /v2/payments returns { id, status }"
+  Postman:     POST /v2/payments → 200 { id }   ← schema drifted, no `status` yet
+  Shell:       jq .id (fine)
+
+Wednesday: API team adds `status` to the response.
+
+Thursday:
+  Wiki:        unchanged — still says { id, status }
+  Postman:     unchanged — your collection
+  Shell:       still works (only reads .id)
+  → Wiki is wrong. Nobody knows.
+```
+
+The fix in httui: the wiki text and the request live in the same
+file. When you edit the runbook to add `{{create.body.status}}`,
+the request, the response, AND the prose all reflect the new shape.
+**Drift becomes a merge conflict**, not a silent staleness.
+
+## Where to go next
+
+You have the mental model. Now:
+
+- **[Quickstart](/docs/tutorials/quickstart)** — make one in 10 minutes
+- **[Why markdown?](/docs/explanation/why-markdown)** — vs Postman / .http / Insomnia
+- **[How it works under the hood](/docs/explanation/how-it-works)** — execution, references, storage
+- **[Local-first](/docs/explanation/local-first)** — no cloud, no telemetry, why

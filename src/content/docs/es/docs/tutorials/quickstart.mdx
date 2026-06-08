@@ -1,0 +1,158 @@
+---
+title: Quickstart
+description: De una instalación fresca a ejecutar tu primer bloque HTTP en 10 minutos.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Al final de este tutorial vas a tener **httui instalado**, un **vault
+vacío abierto**, y tu primer **bloque HTTP devolviendo una respuesta
+real** — todo dentro de un único archivo `.md` que puedes commitear
+a git.
+
+**Tiempo:** ~10 minutos · **Prerequisitos:** internet, macOS / Linux / Windows.
+
+## 1. Instalar
+
+Elige el método que se ajuste a tu shell.
+
+### macOS y Linux — una línea
+
+```bash
+curl -fsSL https://httui.com/install.sh | sh
+```
+
+El script descarga la última release, limpia el quarantine de
+Gatekeeper en macOS, y lanza la app.
+
+### Homebrew (macOS y Linux)
+
+```bash
+brew tap httuicom/httui
+brew install --cask httui
+```
+
+### Windows
+
+Descarga `httui_<version>_x64.msi` desde la
+[página de Releases](https://github.com/httuicom/httui/releases). En el
+primer run SmartScreen warnea — **More info → Run anyway**. El
+auto-update in-app lo mantiene al día después de eso.
+
+<Aside type="tip" title="Builds sin firmar">
+  Las builds de macOS y Windows son hoy builds de developer sin firmar.
+  El install script y el cask de Homebrew manejan el quarantine; las
+  descargas manuales de `.dmg` necesitan `xattr -dr com.apple.quarantine /Applications/httui.app`
+  una vez.
+</Aside>
+
+## 2. Crea tu primer vault
+
+Cuando la app abre sin un vault activo, ves tres cards:
+
+- **Open** — elige una carpeta existente que ya tenga runbooks
+- **Clone** — pega la URL git del vault de un compañero
+- **Create** — elige una carpeta vacía; httui hace el scaffold del layout
+
+<Steps>
+1. Haz clic en **Create**.
+2. Elige una carpeta nueva, ej. `~/runbooks`.
+3. httui le hace el scaffold por ti:
+
+   ```
+   ~/runbooks/
+   ├── .httui/workspace.toml
+   ├── runbooks/                # donde viven tus archivos .md
+   ├── connections.toml         # conexiones de DB
+   ├── envs/local.toml          # variables por entorno
+   └── .gitignore               # esconde .local.toml + notes.db
+   ```
+4. El editor abre con el nuevo vault activo.
+</Steps>
+
+## 3. Tu primer runbook
+
+En el árbol de archivos de la izquierda, click derecho en `runbooks/`
+→ **New note**. Nómbralo `smoke-test.md`. Agrega un título rápido
+arriba:
+
+````markdown
+# Smoke test
+
+Un runbook simple para verificar que el install funciona.
+````
+
+Luego agrega un bloque HTTP abajo:
+
+````markdown
+```http alias=ping timeout=5000
+GET https://httpbin.org/json
+Accept: application/json
+```
+````
+
+Listo. Escribiste un bloque HTTP, lo nombraste `ping`, le diste un
+timeout de 5s. Guarda con `Cmd+S` (o solo espera — autosave es de 1s).
+
+## 4. Ejecútalo
+
+Mueve tu cursor a cualquier parte dentro del body del bloque y
+presiona **`Cmd+Enter`** (o haz clic en el botón ▶ en la toolbar del
+bloque).
+
+Después de ~500ms ves el panel de respuesta debajo del bloque:
+
+- **Body** — JSON pretty-printed (el sample slideshow de httpbin)
+- **Headers** — response headers
+- **Cookies** — valores de set-cookie (ninguno aquí)
+- **Timing** — breakdown de `total` + `ttfb`
+- **Raw** — formato del wire
+
+<Aside title="Qué acaba de pasar">
+  httui parseó el body del bloque como un mensaje HTTP, resolvió las
+  referencias (ninguna en este bloque), envió la request, y streameó
+  la respuesta de vuelta al panel — todo sin dejar tu archivo `.md`.
+</Aside>
+
+## 5. Referencia la respuesta en un nuevo bloque
+
+Agrega un segundo bloque debajo del primero:
+
+````markdown
+```http alias=slides
+GET https://httpbin.org/json?title={{ping.body.slideshow.title}}
+```
+````
+
+El `{{ping.body.slideshow.title}}` lee el **JSON path
+`slideshow.title`** del **body del bloque `ping`**. httui:
+
+1. Ve la referencia.
+2. Ejecuta `ping` primero (ya está cacheado del paso 4 — instantáneo).
+3. Sustituye el valor resuelto.
+4. Ejecuta `slides`.
+
+Hit `Cmd+Enter` en el segundo bloque. Vas a ver que la URL contiene el
+título del slideshow de la primera respuesta.
+
+## Listo
+
+En 10 minutos escribiste un runbook que:
+- Pega a una API real
+- Captura un valor de la respuesta
+- Lo usa en la próxima request
+
+Todo el asunto es un archivo `.md` plano en `~/runbooks/runbooks/`.
+Committéalo a git y tu team puede hacer `git clone` y ejecutar
+exactamente el mismo flujo.
+
+## Qué sigue
+
+- **[Construye un test de API encadenado](/es/docs/tutorials/chained-api)** —
+  login, captura el token, llama a un endpoint protegido, verifica la
+  respuesta.
+- **[Agrega una base de datos a tu runbook](/es/docs/tutorials/add-database)** —
+  conecta SQLite, consulta filas, encadena un resultado de DB en un
+  bloque HTTP.
+- **[Conceptos](/es/docs/how-to/environments)** — vault, referencias,
+  entornos, secretos — el modelo mental en 5 minutos.

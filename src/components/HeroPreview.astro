@@ -1,0 +1,125 @@
+---
+import { css } from "../../styled-system/css";
+import WindowChrome from "./previews/WindowChrome.astro";
+import WorkbenchPreview from "./previews/WorkbenchPreview.astro";
+
+// Workbench is built at 1480×940 (designed for desktop). Even at scale 0.5
+// it overflows mobile/tablet viewports and looks cramped. Render only at lg+;
+// mobile users see the per-feature previews below the hero instead.
+
+const wrap = css({
+  display: { base: "none", lg: "block" },
+  position: "relative",
+  pt: "30px",
+  pb: "100px",
+  overflow: "hidden",
+});
+
+const bgWrap = css({
+  position: "absolute",
+  inset: 0,
+  zIndex: 0,
+  overflow: "hidden",
+});
+const bgImg = css({
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  objectPosition: "center 60%",
+  display: "block",
+});
+
+const vignette = css({
+  position: "absolute",
+  inset: 0,
+  zIndex: 1,
+  pointerEvents: "none",
+  background: `linear-gradient(
+    180deg,
+    var(--colors-bg) 0%,
+    color-mix(in oklch, var(--colors-bg) 60%, transparent) 6%,
+    transparent 18%,
+    transparent 75%,
+    color-mix(in oklch, var(--colors-bg) 70%, transparent) 90%,
+    var(--colors-bg) 100%
+  )`,
+});
+
+const dashRow = css({
+  display: "flex",
+  justifyContent: "center",
+  position: "relative",
+  zIndex: 2,
+});
+const dashFrame = css({
+  w: "1200px",
+  maxW: "1200px",
+  rounded: "xl",
+  overflow: "hidden",
+  bg: "bg.surface",
+  borderWidth: "1px",
+  borderColor: "border",
+  boxShadow: "photo",
+});
+const stage = css({
+  position: "relative",
+  h: "762px",
+  overflow: "hidden",
+});
+const scaler = css({
+  position: "absolute",
+  top: 0,
+  left: 0,
+  w: "1480px",
+  h: "940px",
+  transformOrigin: "top left",
+  transform: "scale(0.811)",
+});
+---
+
+<div class={wrap}>
+  {/* Painting background — Fuji watercolor (light) / dedicated dark variant */}
+  <div class={bgWrap}>
+    <img
+      class={bgImg}
+      src="/hero-1920.jpg"
+      srcset="/hero-768.jpg 768w, /hero-1920.jpg 1920w"
+      sizes="100vw"
+      alt=""
+      loading="eager"
+      decoding="async"
+      data-theme-bg="light"
+      style="filter:saturate(0.7) brightness(1.02);"
+    />
+    <img
+      class={bgImg}
+      src="/hero-dark.png"
+      alt=""
+      loading="eager"
+      decoding="async"
+      data-theme-bg="dark"
+      style="display:none;position:absolute;top:0;left:0;"
+    />
+  </div>
+
+  {/* Vignette */}
+  <div class={vignette}></div>
+
+  {/* Dashboard preview centered, sitting in the painting */}
+  <div class={dashRow}>
+    <div class={dashFrame}>
+      <WindowChrome title="rollout-v2.3.md — httui" />
+      <div class={stage}>
+        <div class={scaler}>
+          <WorkbenchPreview />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  html[data-theme="dark"] [data-theme-bg="light"] { display: none !important; }
+  html[data-theme="dark"] [data-theme-bg="dark"]  { display: block !important; position: static !important; }
+  html[data-theme="light"] [data-theme-bg="dark"] { display: none !important; }
+</style>

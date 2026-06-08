@@ -2,6 +2,7 @@
 import { css } from "../../styled-system/css";
 import Nav from "./Nav.astro";
 import Pill from "./Pill.astro";
+import { repoUrl, stats } from "../lib/i18n";
 
 interface Props {
   lang?: "en" | "pt-br" | "es";
@@ -9,25 +10,26 @@ interface Props {
 
 const { lang = "en" } = Astro.props;
 
-const repoUrl = "https://github.com/httuicom/httui";
-
 const copy = {
   en: {
-    pill: "open source — local-first · no telemetry",
+    pillLead: `${stats.version} · open source —`,
+    pillMono: "local-first · no telemetry",
     headlineA: "Debug your APIs and databases in a",
     headlineB: "single markdown file.",
     sub: "httui is a markdown editor with executable blocks — HTTP requests and SQL (PostgreSQL, MySQL, SQLite). Each runbook is documentation and a troubleshooting tool, versioned in git.",
     cta: "Get started",
   },
   "pt-br": {
-    pill: "código aberto — local-first · sem telemetria",
+    pillLead: `${stats.version} · código aberto —`,
+    pillMono: "local-first · sem telemetria",
     headlineA: "Debugue suas APIs e bancos em um",
     headlineB: "único arquivo markdown.",
     sub: "httui é um editor de markdown com blocos executáveis — requisições HTTP e SQL (PostgreSQL, MySQL, SQLite). Cada runbook é documentação e ferramenta de troubleshooting, versionado no git.",
     cta: "Começar",
   },
   es: {
-    pill: "código abierto — local-first · sin telemetría",
+    pillLead: `${stats.version} · código abierto —`,
+    pillMono: "local-first · sin telemetría",
     headlineA: "Depura tus APIs y bases de datos en un",
     headlineB: "único archivo markdown.",
     sub: "httui es un editor markdown con bloques ejecutables — peticiones HTTP y SQL (PostgreSQL, MySQL, SQLite). Cada runbook es documentación y herramienta de troubleshooting, versionado en git.",
@@ -57,13 +59,18 @@ const badge = css({
   rounded: "full",
   fontSize: "11px",
   bg: "color-mix(in oklch, var(--colors-bg) 80%, transparent)",
-  border: "1px solid",
+  borderWidth: "1px",
   borderColor: "border.subtle",
   color: "fg.muted",
   mb: { base: "5", md: "7" },
   backdropFilter: "blur(8px)",
   whiteSpace: "nowrap",
+  maxW: "100%",
+  overflow: "hidden",
+});
+const badgeMono = css({
   fontFamily: "mono",
+  color: "fg.muted",
 });
 const dot = css({
   w: "6px",
@@ -80,6 +87,7 @@ const h1 = css({
   letterSpacing: "tighter",
   color: "fg",
   textWrap: "balance",
+  textShadow: "0 1px 2px color-mix(in oklch, var(--colors-bg) 50%, transparent)",
 });
 const em = css({ fontStyle: "italic" });
 const subP = css({
@@ -105,7 +113,8 @@ const ctaRow = css({
   <div class={container}>
     <span class={badge}>
       <span class={dot}></span>
-      {t.pill}
+      <span>{t.pillLead}</span>
+      <span class={badgeMono}>{t.pillMono}</span>
     </span>
 
     <h1 class={h1}>

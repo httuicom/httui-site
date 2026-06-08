@@ -1,0 +1,41 @@
+---
+import { css } from "../../../styled-system/css";
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+
+const bar = css({
+  display: "flex",
+  alignItems: "center",
+  h: "30px",
+  px: "3.5",
+  gap: "2",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+  bg: "bg.surface",
+});
+const dot = css({
+  w: "10px",
+  h: "10px",
+  rounded: "full",
+  flexShrink: 0,
+});
+const titleCls = css({
+  flex: "1",
+  textAlign: "center",
+  fontFamily: "mono",
+  fontSize: "xs",
+  color: "fg.muted",
+});
+const spacer = css({ w: "40px" });
+---
+
+<div class={bar}>
+  <span class={dot} style="background:#ed6a5e"></span>
+  <span class={dot} style="background:#f4be4f"></span>
+  <span class={dot} style="background:#62c554"></span>
+  <span class={titleCls}>{title}</span>
+  <span class={spacer}></span>
+</div>

@@ -1,0 +1,1525 @@
+---
+import { css } from "../../../styled-system/css";
+
+// Lucide icon SVG snippets (24x24 viewBox). Use as <span set:html={iconX(size)} />.
+// Each function returns an <svg> string with currentColor stroke.
+const lucide = (size: number, paths: string): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+const icons = {
+  chevronDown: (s: number) => lucide(s, '<path d="m6 9 6 6 6-6"/>'),
+  chevronRight: (s: number) => lucide(s, '<path d="m9 18 6-6-6-6"/>'),
+  check: (s: number) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`,
+  database: (s: number) =>
+    lucide(s, '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>'),
+  file: (s: number) =>
+    lucide(s, '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'),
+  folder: (s: number) =>
+    lucide(s, '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+  folderOpen: (s: number) =>
+    lucide(s, '<path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>'),
+  gitBranch: (s: number) =>
+    lucide(s, '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>'),
+  keyRound: (s: number) =>
+    lucide(s, '<path d="M2 18a4 4 0 0 1 4-4h2a4 4 0 0 1 0 8H6a4 4 0 0 1-4-4Z"/><path d="m14 14 8-8"/><path d="m18 10 2 2"/><circle cx="16.5" cy="7.5" r="1.5"/>'),
+  link: (s: number) =>
+    lucide(s, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+  play: (s: number) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>`,
+  plus: (s: number) => lucide(s, '<path d="M5 12h14"/><path d="M12 5v14"/>'),
+  search: (s: number) =>
+    lucide(s, '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  settings: (s: number) =>
+    lucide(s, '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/><circle cx="12" cy="12" r="3"/>'),
+  sparkles: (s: number) =>
+    lucide(s, '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>'),
+  table: (s: number) =>
+    lucide(s, '<path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/>'),
+  users: (s: number) =>
+    lucide(s, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  x: (s: number) =>
+    lucide(s, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  zap: (s: number) =>
+    lucide(s, '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'),
+  arrowLeftRight: (s: number) =>
+    lucide(s, '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>'),
+};
+
+// ===== Outer grid =====
+const root = css({
+  w: "1480px",
+  h: "940px",
+  bg: "bg",
+  color: "fg",
+  display: "grid",
+  gridTemplateColumns: "240px 1fr 320px",
+  gridTemplateRows: "36px 1fr 22px",
+  fontFamily: "body",
+  fontSize: "13px",
+  borderWidth: "1px",
+  borderColor: "border",
+  overflow: "hidden",
+});
+
+// ===== Top bar =====
+const topBar = css({
+  gridColumn: "1 / 4",
+  gridRow: "1",
+  h: "36px",
+  px: "10px",
+  display: "flex",
+  alignItems: "center",
+  gap: "3",
+  bg: "bg.surface",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const logoWrap = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+  color: "accent",
+  fontWeight: "700",
+  letterSpacing: "snug",
+});
+const logoSq = css({
+  w: "14px",
+  h: "14px",
+  rounded: "sm",
+  bg: "accent",
+});
+const vDivider = css({ w: "1px", h: "18px", bg: "border" });
+const crumb = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  fontSize: "12px",
+  color: "fg.subtle",
+});
+const crumbActive = css({ color: "fg" });
+const flex1 = css({ flex: "1" });
+
+const envSwitcher = css({
+  display: "flex",
+  h: "24px",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "sm",
+  overflow: "hidden",
+});
+const envCell = css({
+  display: "flex",
+  alignItems: "center",
+  px: "2.5",
+  h: "100%",
+  gap: "1.5",
+  fontSize: "12px",
+});
+
+const search = css({
+  display: "flex",
+  alignItems: "center",
+  h: "24px",
+  px: "2",
+  gap: "1.5",
+  w: "220px",
+  bg: "bg.elevated",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "sm",
+  color: "fg.disabled",
+});
+const searchTxt = css({
+  fontSize: "12px",
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+const kbd = css({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minW: "18px",
+  h: "18px",
+  px: "5px",
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "500",
+  color: "fg.muted",
+  bg: "bg.elevated",
+  borderWidth: "1px",
+  borderColor: "border",
+  borderBottomWidth: "2px",
+  rounded: "sm",
+});
+
+const avatarStack = css({ display: "flex", alignItems: "center" });
+const avatar = css({
+  w: "22px",
+  h: "22px",
+  rounded: "full",
+  fontSize: "10px",
+  fontWeight: "700",
+  display: "grid",
+  placeItems: "center",
+  border: "2px solid",
+  borderColor: "bg.surface",
+  color: "oklch(0.18 0.02 260)",
+});
+
+const branchChip = css({
+  display: "flex",
+  alignItems: "center",
+  h: "24px",
+  px: "2",
+  gap: "1.5",
+  color: "fg.muted",
+  fontSize: "12px",
+  rounded: "sm",
+});
+const runAll = css({
+  display: "flex",
+  alignItems: "center",
+  h: "24px",
+  px: "2.5",
+  gap: "1.5",
+  bg: "accent",
+  color: "accent.fg",
+  fontSize: "11px",
+  fontWeight: "600",
+  rounded: "sm",
+});
+
+// ===== Left sidebar =====
+const leftSidebar = css({
+  gridColumn: "1",
+  gridRow: "2",
+  display: "flex",
+  flexDirection: "column",
+  bg: "bg.surface",
+  borderRightWidth: "1px",
+  borderColor: "border",
+  minH: "0",
+});
+const paneHead = css({
+  display: "flex",
+  alignItems: "center",
+  h: "28px",
+  px: "10px",
+  gap: "2",
+  color: "fg.subtle",
+  fontSize: "11px",
+  fontWeight: "600",
+  letterSpacing: "wide",
+  textTransform: "uppercase",
+});
+
+const filesBox = css({
+  flex: "1 1 50%",
+  overflow: "hidden",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+  pb: "1.5",
+});
+const fileRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "24px",
+  pr: "2",
+  gap: "1.5",
+  fontSize: "12px",
+});
+const fileLabel = css({
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+const fileChevSlot = css({
+  w: "10px",
+  color: "fg.disabled",
+  display: "flex",
+  alignItems: "center",
+});
+const fileIconSlot = css({
+  display: "flex",
+  alignItems: "center",
+});
+const dotBase = css({
+  display: "inline-block",
+  w: "6px",
+  h: "6px",
+  rounded: "full",
+  flexShrink: 0,
+});
+
+const connectionsBox = css({
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const connRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "26px",
+  px: "2.5",
+  gap: "2",
+  fontSize: "12px",
+  color: "fg.muted",
+});
+const connIconSlot = css({
+  color: "fg.subtle",
+  display: "flex",
+  alignItems: "center",
+});
+const prodPill = css({
+  fontSize: "9px",
+  fontWeight: "700",
+  color: "err",
+  letterSpacing: "wide",
+});
+const connLatency = css({
+  fontFamily: "mono",
+  fontSize: "10px",
+  color: "fg.disabled",
+});
+
+const varsRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "22px",
+  px: "2.5",
+  gap: "1.5",
+  fontSize: "11px",
+});
+const varKey = css({ fontFamily: "mono", color: "fg" });
+const varVal = css({
+  fontFamily: "mono",
+  color: "fg.subtle",
+  flex: "1",
+  textAlign: "right",
+  maxW: "130px",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+const varIconSlot = css({
+  display: "flex",
+  alignItems: "center",
+  w: "11px",
+  justifyContent: "center",
+});
+
+// ===== Center =====
+const center = css({
+  gridColumn: "2",
+  gridRow: "2",
+  display: "flex",
+  flexDirection: "column",
+  minH: "0",
+  bg: "bg",
+});
+const tabBar = css({
+  display: "flex",
+  alignItems: "center",
+  h: "32px",
+  bg: "bg.surface",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const tabActive = css({
+  display: "flex",
+  alignItems: "center",
+  h: "100%",
+  px: "3.5",
+  gap: "2",
+  bg: "bg",
+  borderRightWidth: "1px",
+  borderColor: "border",
+  position: "relative",
+  _after: {
+    content: '""',
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    h: "1px",
+    bg: "accent",
+  },
+});
+const tab = css({
+  display: "flex",
+  alignItems: "center",
+  h: "100%",
+  px: "3.5",
+  gap: "2",
+  borderRightWidth: "1px",
+  borderColor: "border",
+});
+const tabTxtActive = css({ fontSize: "12px", color: "fg" });
+const tabTxt = css({ fontSize: "12px", color: "fg.subtle" });
+const tabIconAccent = css({
+  color: "accent",
+  display: "flex",
+  alignItems: "center",
+});
+const tabIconDisabled = css({
+  color: "fg.disabled",
+  display: "flex",
+  alignItems: "center",
+});
+const tabSpacer = css({
+  flex: "1",
+  borderRightWidth: "1px",
+  borderColor: "border",
+});
+const tabRightCluster = css({
+  display: "flex",
+  alignItems: "center",
+  px: "2.5",
+  gap: "2.5",
+  color: "fg.subtle",
+});
+
+const editorToolbar = css({
+  display: "flex",
+  alignItems: "center",
+  h: "30px",
+  px: "3",
+  gap: "3",
+  bg: "bg.surface",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+  fontSize: "11px",
+  color: "fg.subtle",
+});
+const autoCapture = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1",
+  color: "accent",
+});
+
+const docBox = css({
+  flex: "1",
+  overflow: "hidden",
+  px: "36px",
+  pt: "20px",
+  pb: "60px",
+});
+const docInner = css({
+  maxW: "880px",
+  mx: "auto",
+});
+
+// DocHeader
+const docHeader = css({
+  pb: "5",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const docCrumb = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  fontSize: "11px",
+  color: "fg.disabled",
+  fontFamily: "mono",
+  mb: "3.5",
+});
+const docCrumbActive = css({ color: "fg.muted" });
+const draftPill = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  px: "7px",
+  py: "2px",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "sm",
+  fontSize: "10px",
+  color: "fg.subtle",
+});
+const docTitle = css({
+  fontFamily: "heading",
+  fontSize: "32px",
+  lineHeight: "1.18",
+  fontWeight: "700",
+  letterSpacing: "snug",
+  color: "fg",
+  mb: "2",
+});
+const metaStrip = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "3.5",
+  flexWrap: "wrap",
+  mb: "4",
+  fontSize: "12px",
+  color: "fg.subtle",
+});
+const metaGroup = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+});
+const metaAvatar = css({
+  w: "18px",
+  h: "18px",
+  rounded: "full",
+  color: "white",
+  fontSize: "10px",
+  fontWeight: "700",
+  display: "grid",
+  placeItems: "center",
+});
+const metaMono = css({ fontFamily: "mono", color: "fg.muted" });
+const metaAccent = css({
+  color: "accent.emphasized",
+  fontWeight: "600",
+});
+const metaOk = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  color: "ok",
+});
+
+const abstract = css({
+  fontFamily: "heading",
+  fontSize: "16px",
+  lineHeight: "1.6",
+  color: "fg.muted",
+  mb: "3.5",
+  maxW: "720px",
+});
+const abstractCode = css({
+  fontFamily: "mono",
+  px: "1",
+  bg: "bg.elevated",
+  rounded: "sm",
+  fontSize: "13px",
+});
+
+const preflightGrid = css({
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: "6",
+  alignItems: "start",
+});
+const preflightBox = css({
+  bg: "bg.surface",
+  borderWidth: "1px",
+  borderColor: "border.subtle",
+  rounded: "md",
+  px: "3.5",
+  py: "2.5",
+});
+const preflightTitle = css({
+  fontSize: "10px",
+  fontWeight: "700",
+  letterSpacing: "wider",
+  color: "fg.subtle",
+  mb: "1.5",
+});
+const preflightList = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "1",
+  fontSize: "13px",
+});
+const preflightRow = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+});
+const checkbox = css({
+  w: "14px",
+  h: "14px",
+  rounded: "2px",
+  display: "grid",
+  placeItems: "center",
+  flexShrink: 0,
+  color: "white",
+});
+const checkboxDone = css({
+  bg: "ok",
+});
+const checkboxTodo = css({
+  borderWidth: "1px",
+  borderColor: "border",
+});
+const inlineCode = css({
+  fontFamily: "mono",
+  px: "1",
+  bg: "bg.elevated",
+  rounded: "sm",
+  fontSize: "12px",
+});
+
+const tagsCol = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "1.5",
+  fontSize: "11px",
+});
+const tagsTitle = css({
+  fontSize: "10px",
+  fontWeight: "700",
+  letterSpacing: "wider",
+  color: "fg.disabled",
+});
+const tag = css({ fontFamily: "mono", color: "fg.muted" });
+
+// Numbered section
+const numSection = css({
+  display: "flex",
+  alignItems: "baseline",
+  gap: "3",
+  mt: "6",
+});
+const numCircle = css({
+  flexShrink: 0,
+  w: "26px",
+  h: "26px",
+  rounded: "full",
+  bg: "accent.subtle",
+  color: "accent",
+  display: "grid",
+  placeItems: "center",
+  fontFamily: "mono",
+  fontSize: "12px",
+  fontWeight: "700",
+  borderWidth: "1px",
+  borderColor: "accent",
+});
+const numTitle = css({
+  fontFamily: "heading",
+  fontSize: "22px",
+  fontWeight: "600",
+  color: "fg",
+  letterSpacing: "snug",
+  lineHeight: "1.25",
+});
+const numRule = css({
+  flex: "1",
+  h: "1px",
+  bg: "border.subtle",
+  position: "relative",
+  top: "-4px",
+});
+
+// Block shell
+const blockShell = css({
+  mt: "3.5",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "md",
+  bg: "bg.surface",
+  overflow: "hidden",
+});
+const blockHead = css({
+  display: "flex",
+  alignItems: "center",
+  h: "30px",
+  px: "2",
+  gap: "2.5",
+  bg: "bg.elevated",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const blockIdx = css({
+  w: "22px",
+  textAlign: "center",
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "600",
+  color: "fg.disabled",
+});
+const blockKindLabel = css({
+  fontFamily: "mono",
+  fontSize: "9px",
+  fontWeight: "700",
+  letterSpacing: "wider",
+  px: "1.5",
+  py: "0.5",
+  rounded: "sm",
+  color: "paper.100",
+});
+const blockHeadRight = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "2",
+});
+const blockBody = css({ px: "2.5", py: "2" });
+const blockFooter = css({
+  display: "flex",
+  alignItems: "center",
+  px: "2.5",
+  py: "1.5",
+  gap: "1.5",
+  bg: "accent.subtle",
+  borderTopWidth: "1px",
+  borderColor: "border.subtle",
+  fontSize: "10px",
+  color: "fg.muted",
+});
+
+const methodGet = css({
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "600",
+  letterSpacing: "wider",
+  px: "1.5",
+  py: "0.5",
+  rounded: "sm",
+  color: "ok",
+  bg: "accent.subtle",
+  _dark: { bg: "bg.elevated" },
+});
+const methodPost = css({
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "600",
+  letterSpacing: "wider",
+  px: "1.5",
+  py: "0.5",
+  rounded: "sm",
+  color: "sky.500",
+  bg: "accent.subtle",
+  _dark: { bg: "bg.elevated" },
+});
+const urlMono = css({
+  fontFamily: "mono",
+  fontSize: "12px",
+  color: "fg",
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+
+const ranTxt = css({ fontSize: "11px", color: "fg.disabled" });
+const okMono = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+  fontFamily: "mono",
+  fontSize: "11px",
+  color: "ok",
+  fontWeight: "600",
+});
+
+const jsonBody = css({
+  mt: "1.5",
+  fontFamily: "mono",
+  fontSize: "11px",
+  lineHeight: "1.6",
+  color: "fg.muted",
+});
+const jsonIndent = css({ pl: "3.5" });
+const jKey = css({ color: "accent.emphasized" });
+const jOk = css({ color: "ok" });
+const jWarn = css({ color: "warn" });
+const jMuted = css({ color: "fg.muted" });
+
+const sqlBody = css({
+  fontFamily: "mono",
+  fontSize: "11px",
+  lineHeight: "1.7",
+  color: "fg.muted",
+});
+const sqlKw = css({ color: "info" });
+
+const headerSubtle = css({ color: "fg.subtle" });
+
+const capturedMono = css({
+  fontFamily: "mono",
+  color: "accent.emphasized",
+  fontWeight: "600",
+});
+const linkIconAccent = css({
+  color: "accent",
+  display: "flex",
+  alignItems: "center",
+});
+
+// ===== Right sidebar =====
+const rightSidebar = css({
+  gridColumn: "3",
+  gridRow: "2",
+  display: "flex",
+  flexDirection: "column",
+  bg: "bg.surface",
+  borderLeftWidth: "1px",
+  borderColor: "border",
+  minH: "0",
+});
+const rightTabs = css({
+  display: "flex",
+  alignItems: "center",
+  h: "30px",
+  bg: "bg",
+  borderBottomWidth: "1px",
+  borderColor: "border",
+});
+const rightTab = css({
+  display: "flex",
+  alignItems: "center",
+  flex: "1",
+  h: "100%",
+  justifyContent: "center",
+  gap: "1.5",
+  fontSize: "11px",
+});
+const commentsBadge = css({
+  fontSize: "9px",
+  px: "5px",
+  py: "1px",
+  bg: "accent",
+  color: "accent.fg",
+  rounded: "full",
+  fontWeight: "700",
+});
+
+const dbHeadInfo = css({
+  display: "flex",
+  alignItems: "center",
+  px: "3",
+  pb: "1.5",
+  gap: "1.5",
+  fontSize: "11px",
+  color: "fg.subtle",
+});
+const schemaRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "22px",
+  px: "3",
+  gap: "1.5",
+  fontSize: "12px",
+  color: "fg.muted",
+});
+const schemaCount = css({ fontSize: "10px", color: "fg.disabled" });
+const tableRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "22px",
+  pr: "3",
+  gap: "1.5",
+  fontSize: "12px",
+  color: "fg",
+});
+const tableRowCols = css({
+  display: "flex",
+  alignItems: "center",
+  h: "20px",
+  pr: "3",
+  gap: "2",
+  fontSize: "11px",
+  color: "fg.muted",
+});
+const tableRowColKey = css({
+  w: "11px",
+  display: "flex",
+  alignItems: "center",
+});
+const monoFg = css({ fontFamily: "mono", color: "fg" });
+const monoDisabled = css({ fontFamily: "mono", color: "fg.disabled" });
+
+const hrLine = css({ h: "1px", bg: "border", my: "3" });
+
+const histRow = css({
+  display: "flex",
+  alignItems: "center",
+  h: "24px",
+  px: "3",
+  gap: "2",
+  fontSize: "11px",
+});
+const histAt = css({
+  fontFamily: "mono",
+  color: "fg.disabled",
+  w: "44px",
+});
+const histLabel = css({
+  color: "fg",
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+const histInfo = css({
+  fontFamily: "mono",
+  fontSize: "10px",
+  fontWeight: "600",
+});
+
+const aiBar = css({
+  borderTopWidth: "1px",
+  borderColor: "border",
+  px: "2.5",
+  py: "2",
+  bg: "bg.elevated",
+});
+const aiHead = css({
+  display: "flex",
+  alignItems: "center",
+  mb: "1.5",
+  fontSize: "11px",
+  color: "fg.subtle",
+  gap: "1.5",
+});
+const aiInput = css({
+  display: "flex",
+  alignItems: "center",
+  h: "26px",
+  px: "2",
+  bg: "bg",
+  borderWidth: "1px",
+  borderColor: "border",
+  rounded: "sm",
+  fontSize: "12px",
+  color: "fg.disabled",
+});
+
+// Status bar
+const statusBar = css({
+  gridColumn: "1 / 4",
+  gridRow: "3",
+  display: "flex",
+  alignItems: "center",
+  h: "22px",
+  px: "2.5",
+  gap: "3.5",
+  fontFamily: "mono",
+  fontSize: "11px",
+  color: "fg.subtle",
+  bg: "bg.surface",
+  borderTopWidth: "1px",
+  borderColor: "border",
+});
+const statusGroup = css({
+  display: "flex",
+  alignItems: "center",
+  gap: "1.5",
+});
+
+// ===== Data =====
+const envs = [
+  { e: "local", active: false, prod: false },
+  { e: "staging", active: true, prod: false },
+  { e: "prod", active: false, prod: true },
+];
+
+const collabs = [
+  { id: "rf", n: "R", c: "oklch(0.78 0.16 145)" },
+  { id: "ml", n: "M", c: "oklch(0.74 0.18 30)" },
+  { id: "td", n: "T", c: "oklch(0.74 0.14 250)" },
+];
+
+type FileRow = {
+  n: string;
+  folder: boolean;
+  depth: number;
+  open?: boolean;
+  active?: boolean;
+  dirty?: boolean;
+};
+const files: FileRow[] = [
+  { n: "runbooks", folder: true, depth: 0, open: true },
+  { n: "payments", folder: true, depth: 1, open: true },
+  { n: "rollout-v2.3.md", folder: false, depth: 2, active: true, dirty: true },
+  { n: "rollback.md", folder: false, depth: 2 },
+  { n: "incident-2026-03-19.md", folder: false, depth: 2 },
+  { n: "onboarding", folder: true, depth: 1, open: false },
+  { n: "data-fixes.md", folder: false, depth: 1 },
+  { n: "scratch", folder: true, depth: 0, open: false },
+  { n: "ad-hoc.md", folder: false, depth: 1 },
+  { n: "shared / team", folder: true, depth: 0, open: false },
+];
+
+type ConnRow = { n: string; k: "ok" | "warn"; l: number; prod?: boolean };
+const connections: ConnRow[] = [
+  { n: "pg · payments@staging", k: "ok", l: 18 },
+  { n: "pg · payments@prod", k: "ok", l: 41, prod: true },
+  { n: "mongo · audit", k: "ok", l: 22 },
+  { n: "redis · cache", k: "warn", l: 88 },
+  { n: "API · payments", k: "ok", l: 142 },
+];
+
+type VarRow = { k: string; v: string; secret: boolean };
+const variables: VarRow[] = [
+  { k: "BASE_URL", v: "https://api.staging.acme.dev", secret: false },
+  { k: "TENANT_ID", v: "tnt_8f2a91", secret: false },
+  { k: "ADMIN_TOKEN", v: "••••••••••••mB9k", secret: true },
+  { k: "PG_DSN", v: "postgres://app@db-staging…", secret: false },
+];
+
+type PreflightItem = { ok: boolean; t: string; code?: string };
+const preflight: PreflightItem[] = [
+  { ok: true, t: "config do tenant atualizada em ", code: "tenants.config" },
+  { ok: true, t: "0 registros órfãos em ", code: "payments_route" },
+  { ok: false, t: "subscrever stream WS por ", code: "30s" },
+  { ok: false, t: "rollout_pct ≤ 25 antes de prod" },
+];
+
+const tags = ["#rollout", "#payments", "#staging", "#breaking-change"];
+
+const rightTabsList = ["Outline", "Schema", "History", "Comments"];
+
+type SchemaTable = { n: string; rows: string; open: boolean };
+const schemaTables: SchemaTable[] = [
+  { n: "payment_provider", rows: "12", open: false },
+  { n: "payments_route", rows: "4,318", open: true },
+  { n: "tenants", rows: "821", open: false },
+  { n: "captures", rows: "1,284,913", open: false },
+  { n: "audit_log", rows: "9,123,402", open: false },
+];
+
+type SchemaCol = { k: string; t: string; pk?: boolean; fk?: boolean };
+const routeCols: SchemaCol[] = [
+  { k: "id", t: "text", pk: true },
+  { k: "tenant_id", t: "text", fk: true },
+  { k: "provider_key", t: "text", fk: true },
+  { k: "fallbacks", t: "text[]" },
+  { k: "rollout_pct", t: "int4" },
+  { k: "created_at", t: "timestamptz" },
+  { k: "updated_at", t: "timestamptz" },
+];
+
+type HistEntry = { at: string; label: string; info: string; k: "ok" | "info" };
+const history: HistEntry[] = [
+  { at: "14:24:07", label: "WS captures", info: "14 msgs", k: "info" },
+  { at: "14:23:01", label: "SELECT … rotas órfãs", info: "3 rows · 47ms", k: "ok" },
+  { at: "14:22:14", label: "POST /v2/auth/admin", info: "201 · 318ms", k: "ok" },
+  { at: "14:22:08", label: "GET /v2/health", info: "200 · 142ms", k: "ok" },
+];
+
+// raw literals with double-mustache that must dodge the Astro parser
+const urlHealth = "{{BASE_URL}}/v2/health";
+const urlAuth = "{{BASE_URL}}/v2/auth/admin";
+const adminTok = "{{ADMIN_TOKEN}}";
+const tenantTok = "{{TENANT_ID}}";
+
+// Status dot color tokens
+const dotColor: Record<string, string> = {
+  ok: "var(--colors-ok)",
+  warn: "var(--colors-warn)",
+  err: "var(--colors-err)",
+  info: "var(--colors-info)",
+  idle: "var(--colors-fg-disabled)",
+};
+---
+
+<div class={root}>
+  {/* TOP BAR */}
+  <div class={topBar}>
+    <div class={logoWrap}>
+      <span class={logoSq}></span>
+      <span>httui</span>
+    </div>
+    <div class={vDivider}></div>
+
+    {/* Breadcrumb */}
+    <div class={crumb}>
+      <span>acme</span>
+      <span set:html={icons.chevronRight(12)}></span>
+      <span>payments</span>
+      <span set:html={icons.chevronRight(12)}></span>
+      <span class={crumbActive}>rollout-v2.3.md</span>
+      <span class={dotBase} style={`background:${dotColor.warn}`}></span>
+    </div>
+    <div class={flex1}></div>
+
+    {/* Env switcher */}
+    <div class={envSwitcher}>
+      {envs.map((env, i) => (
+        <div
+          class={envCell}
+          style={`background:${env.active ? "var(--colors-bg-subtle)" : "transparent"};color:${env.active ? "var(--colors-fg)" : "var(--colors-fg-subtle)"};font-weight:${env.active ? 600 : 400};border-right:${i < 2 ? "1px solid var(--colors-border)" : "none"};`}
+        >
+          {env.prod && <span class={dotBase} style={`background:${dotColor.err}`}></span>}
+          <span>{env.e}</span>
+        </div>
+      ))}
+    </div>
+
+    {/* Search */}
+    <div class={search}>
+      <span set:html={icons.search(12)}></span>
+      <span class={searchTxt}>Search blocks, vars, schema…</span>
+      <span class={kbd}>⌘K</span>
+    </div>
+
+    {/* Collaborators */}
+    <div class={avatarStack}>
+      {collabs.map((c, i) => (
+        <span
+          class={avatar}
+          style={`background:${c.c};margin-left:${i === 0 ? 0 : "-6px"}`}
+        >{c.n}</span>
+      ))}
+    </div>
+
+    {/* Branch + Run all */}
+    <div class={branchChip}>
+      <span set:html={icons.gitBranch(12)}></span>
+      <span>main</span>
+    </div>
+    <div class={runAll}>
+      <span set:html={icons.play(11)}></span>
+      <span>Run all</span>
+    </div>
+  </div>
+
+  {/* LEFT SIDEBAR */}
+  <div class={leftSidebar}>
+    {/* Files */}
+    <div class={paneHead}>
+      <span>Files</span>
+      <span class={flex1}></span>
+      <span set:html={icons.plus(11)}></span>
+    </div>
+    <div class={filesBox}>
+      {files.map((r) => (
+        <div
+          class={fileRow}
+          style={`padding-left:${8 + r.depth * 12}px;color:${r.active ? "var(--colors-fg)" : "var(--colors-fg-muted)"};font-weight:${r.active ? 600 : 400};background:${r.active ? "var(--colors-bg-subtle)" : "transparent"};`}
+        >
+          <span class={fileChevSlot}>
+            {r.folder ? (
+              <span set:html={r.open ? icons.chevronDown(11) : icons.chevronRight(11)}></span>
+            ) : null}
+          </span>
+          <span class={fileIconSlot} style={`color:${r.folder ? "var(--colors-fg-subtle)" : "var(--colors-accent)"}`}>
+            {r.folder ? (
+              <span set:html={r.open ? icons.folderOpen(12) : icons.folder(12)}></span>
+            ) : (
+              <span set:html={icons.file(12)}></span>
+            )}
+          </span>
+          <span class={fileLabel}>{r.n}</span>
+          {r.dirty && <span class={dotBase} style={`background:${dotColor.warn}`}></span>}
+        </div>
+      ))}
+    </div>
+
+    {/* Connections */}
+    <div class={connectionsBox}>
+      <div class={paneHead}>
+        <span>Connections</span>
+        <span class={flex1}></span>
+        <span set:html={icons.plus(11)}></span>
+      </div>
+      <div style="padding-bottom:6px">
+        {connections.map((c) => (
+          <div class={connRow}>
+            <span class={dotBase} style={`background:${dotColor[c.k]}`}></span>
+            <span class={connIconSlot} set:html={icons.database(12)}></span>
+            <span class={fileLabel}>{c.n}</span>
+            {c.prod && <span class={prodPill}>PROD</span>}
+            <span class={connLatency}>{c.l}ms</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Variables */}
+    <div>
+      <div class={paneHead}>
+        <span>Variables — staging</span>
+        <span class={flex1}></span>
+        <span set:html={icons.plus(11)}></span>
+      </div>
+      <div style="padding-bottom:8px">
+        {variables.map((v) => (
+          <div class={varsRow}>
+            <span class={varIconSlot} style={`color:${v.secret ? "var(--colors-warn)" : "var(--colors-fg-disabled)"}`}>
+              {v.secret ? (
+                <span set:html={icons.keyRound(11)}></span>
+              ) : (
+                <span style="display:inline-block;width:3px;height:3px;border-radius:9999px;background:var(--colors-fg-disabled)"></span>
+              )}
+            </span>
+            <span class={varKey}>{v.k}</span>
+            <span class={varVal}>{v.v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  {/* CENTER */}
+  <div class={center}>
+    {/* Tab bar */}
+    <div class={tabBar}>
+      <div class={tabActive}>
+        <span class={tabIconAccent} set:html={icons.file(12)}></span>
+        <span class={tabTxtActive}>rollout-v2.3.md</span>
+        <span class={dotBase} style={`background:${dotColor.warn}`}></span>
+        <span class={tabIconDisabled} style="margin-left:4px" set:html={icons.x(12)}></span>
+      </div>
+      <div class={tab}>
+        <span class={tabIconDisabled} set:html={icons.file(12)}></span>
+        <span class={tabTxt}>rollback.md</span>
+        <span class={tabIconDisabled} set:html={icons.x(12)}></span>
+      </div>
+      <div class={tab}>
+        <span class={tabIconDisabled} set:html={icons.file(12)}></span>
+        <span class={tabTxt}>ad-hoc.md</span>
+        <span class={tabIconDisabled} set:html={icons.x(12)}></span>
+      </div>
+      <div class={tabSpacer}></div>
+      <div class={tabRightCluster}>
+        <span set:html={icons.arrowLeftRight(14)}></span>
+        <span set:html={icons.users(14)}></span>
+        <span set:html={icons.settings(14)}></span>
+      </div>
+    </div>
+
+    {/* Editor toolbar */}
+    <div class={editorToolbar}>
+      <span>runbooks / payments / rollout-v2.3.md</span>
+      <span>·</span>
+      <span>edited há 4 min by rafael</span>
+      <span class={flex1}></span>
+      <span style="font-family:var(--fonts-mono)">10 blocks · 4 ran · 1 pending</span>
+      <span>·</span>
+      <span class={autoCapture}>
+        <span set:html={icons.zap(11)}></span>
+        <span>auto-capture</span>
+      </span>
+    </div>
+
+    {/* Document */}
+    <div class={docBox}>
+      <div class={docInner}>
+        {/* DocHeader */}
+        <div class={docHeader}>
+          <div class={docCrumb}>
+            <span set:html={icons.folder(11)}></span>
+            <span>runbooks</span>
+            <span>/</span>
+            <span>payments</span>
+            <span>/</span>
+            <span class={docCrumbActive}>rollout-v2.3.md</span>
+            <span class={flex1}></span>
+            <span class={draftPill}>
+              <span class={dotBase} style={`background:${dotColor.warn}`}></span>
+              <span>draft · 4 unsaved edits</span>
+            </span>
+          </div>
+
+          <h1 class={docTitle}>Rollout — Payments v2.3 → staging</h1>
+
+          <div class={metaStrip}>
+            <span class={metaGroup}>
+              <span class={metaAvatar} style="background:oklch(0.74 0.14 50)">R</span>
+              <span style="color:var(--colors-fg-muted)">rafael</span>
+            </span>
+            <span>·</span>
+            <span>edited <span class={metaMono}>há 4 min</span></span>
+            <span>·</span>
+            <span style="font-family:var(--fonts-mono)">10 blocks</span>
+            <span>·</span>
+            <span class={metaGroup}>
+              <span set:html={icons.gitBranch(11)}></span>
+              <span class={metaMono}>main</span>
+              <span class={metaAccent}>+3 ~1</span>
+            </span>
+            <span>·</span>
+            <span class={metaOk}>
+              <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+              <span>last run 14:23 — all green</span>
+            </span>
+          </div>
+
+          <p class={abstract}>
+            Deploy do novo provider de cartão (<code class={abstractCode}>stripe_v2</code>) para o tenant <code class={abstractCode}>acme-payments</code> em staging. Antes de promover para prod, validar que a config foi propagada, que <code class={abstractCode}>payments_route</code> não tem rotas órfãs, e que a latência do stream de captura fica abaixo de 800ms.
+          </p>
+
+          <div class={preflightGrid}>
+            <div class={preflightBox}>
+              <div class={preflightTitle}>PRÉ-FLIGHT — 4 itens</div>
+              <div class={preflightList}>
+                {preflight.map((it) => (
+                  <div
+                    class={preflightRow}
+                    style={`color:${it.ok ? "var(--colors-fg-subtle)" : "var(--colors-fg)"}`}
+                  >
+                    <span class={`${checkbox} ${it.ok ? checkboxDone : checkboxTodo}`}>
+                      {it.ok && <span set:html={icons.check(10)}></span>}
+                    </span>
+                    <span
+                      style={`text-decoration:${it.ok ? "line-through" : "none"};text-decoration-color:var(--colors-fg-disabled);`}
+                    >
+                      {it.t}
+                      {it.code && <code class={inlineCode}>{it.code}</code>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div class={tagsCol}>
+              <div class={tagsTitle}>TAGS</div>
+              {tags.map((t) => <div class={tag}>{t}</div>)}
+            </div>
+          </div>
+        </div>
+
+        {/* Section 1 */}
+        <div class={numSection}>
+          <span class={numCircle}>1</span>
+          <span class={numTitle}>Sanidade — health check do gateway</span>
+          <span class={numRule}></span>
+        </div>
+
+        {/* Block 02 — HTTP GET */}
+        <div class={blockShell}>
+          <div class={blockHead}>
+            <span class={blockIdx}>02</span>
+            <span class={flex1}></span>
+            <div class={blockHeadRight}>
+              <span class={ranTxt}>ran 14:22:08</span>
+              <span class={okMono}>
+                <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+                <span>200 · 142ms</span>
+              </span>
+            </div>
+          </div>
+          <div class={blockBody}>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class={methodGet}>GET</span>
+              <span class={urlMono}>{urlHealth}</span>
+            </div>
+            <div class={jsonBody}>
+              <div>{"{"}</div>
+              <div class={jsonIndent}>
+                <span class={jKey}>"status"</span>: <span class={jOk}>"ok"</span>, <span class={jKey}>"version"</span>: <span class={jOk}>"2.3.0-rc4"</span>,
+              </div>
+              <div class={jsonIndent}>
+                <span class={jKey}>"deps"</span>: <span class={jMuted}>{"{ "}</span><span class={jKey}>"db"</span>: <span class={jOk}>"ok"</span>, <span class={jKey}>"kafka"</span>: <span class={jWarn}>"degraded"</span><span class={jMuted}>{" }"}</span>
+              </div>
+              <div>{"}"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2 */}
+        <div class={numSection}>
+          <span class={numCircle}>2</span>
+          <span class={numTitle}>Autenticar como admin do tenant</span>
+          <span class={numRule}></span>
+        </div>
+
+        {/* Block 04 — POST */}
+        <div class={blockShell}>
+          <div class={blockHead}>
+            <span class={blockIdx}>04</span>
+            <span class={flex1}></span>
+            <div class={blockHeadRight}>
+              <span class={ranTxt}>ran 14:22:14</span>
+              <span class={okMono}>
+                <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+                <span>201 · 318ms</span>
+              </span>
+            </div>
+          </div>
+          <div class={blockBody}>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class={methodPost}>POST</span>
+              <span class={urlMono}>{urlAuth}</span>
+            </div>
+            <div class={jsonBody}>
+              <div>
+                <span class={headerSubtle}>Authorization</span>: Bearer <span class={jKey}>{adminTok}</span>
+              </div>
+              <div>
+                <span class={headerSubtle}>X-Tenant</span>: <span class={jKey}>{tenantTok}</span>
+              </div>
+            </div>
+          </div>
+          <div class={blockFooter}>
+            <span class={linkIconAccent} set:html={icons.link(11)}></span>
+            <span>captured →</span>
+            <span class={capturedMono}>SESSION_ID</span>
+            <span style="font-family:var(--fonts-mono)">= ses_01HZ4RTQ8VK7…</span>
+          </div>
+        </div>
+
+        {/* Section 3 */}
+        <div class={numSection}>
+          <span class={numCircle}>3</span>
+          <span class={numTitle}>Verificar rotas órfãs no banco</span>
+          <span class={numRule}></span>
+        </div>
+
+        {/* Block 06 — SQL */}
+        <div class={blockShell}>
+          <div class={blockHead}>
+            <span class={blockIdx}>06</span>
+            <span class={blockKindLabel} style="background:oklch(0.42 0.10 290)">SQL</span>
+            <span class={flex1}></span>
+            <div class={blockHeadRight}>
+              <span class={ranTxt}>pg · payments@staging</span>
+              <span class={okMono}>
+                <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+                <span>3 rows · 47ms</span>
+              </span>
+            </div>
+          </div>
+          <div class={blockBody}>
+            <div class={sqlBody}>
+              <div><span class={sqlKw}>SELECT</span> r.id, r.tenant_id, r.provider_key</div>
+              <div><span class={sqlKw}>FROM</span> payments_route r</div>
+              <div><span class={sqlKw}>LEFT JOIN</span> payment_provider p <span class={sqlKw}>ON</span> p.key = r.provider_key</div>
+              <div><span class={sqlKw}>WHERE</span> p.key <span class={sqlKw}>IS NULL</span>;</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* RIGHT SIDEBAR */}
+  <div class={rightSidebar}>
+    {/* Tabs */}
+    <div class={rightTabs}>
+      {rightTabsList.map((t, i) => {
+        const active = t === "Schema";
+        const last = i === rightTabsList.length - 1;
+        return (
+          <div
+            class={rightTab}
+            style={`font-weight:${active ? 600 : 500};color:${active ? "var(--colors-fg)" : "var(--colors-fg-subtle)"};background:${active ? "var(--colors-bg-surface)" : "transparent"};border-bottom:1px solid ${active ? "var(--colors-accent)" : "transparent"};border-right:${!last ? "1px solid var(--colors-border)" : "none"};`}
+          >
+            <span>{t}</span>
+            {t === "Comments" && <span class={commentsBadge}>2</span>}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Schema panel */}
+    <div style="flex:1;overflow:hidden">
+      <div class={paneHead}>
+        <span>Database</span>
+        <span class={flex1}></span>
+        <span style="font-size:10px;color:var(--colors-fg-disabled)">payments</span>
+      </div>
+      <div class={dbHeadInfo}>
+        <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+        <span>pg · payments@staging · 18ms</span>
+      </div>
+
+      {/* public schema */}
+      <div class={schemaRow}>
+        <span style="color:var(--colors-fg-disabled);display:flex;align-items:center" set:html={icons.chevronDown(11)}></span>
+        <span style="color:var(--colors-fg-subtle);display:flex;align-items:center" set:html={icons.database(12)}></span>
+        <span>public</span>
+        <span class={flex1}></span>
+        <span class={schemaCount}>5</span>
+      </div>
+
+      {schemaTables.map((t) => (
+        <div>
+          <div
+            class={tableRow}
+            style={`padding-left:26px;font-weight:${t.open ? 600 : 400};background:${t.open ? "var(--colors-bg-elevated)" : "transparent"};`}
+          >
+            <span style="color:var(--colors-fg-disabled);display:flex;align-items:center" set:html={t.open ? icons.chevronDown(11) : icons.chevronRight(11)}></span>
+            <span style="color:var(--colors-fg-subtle);display:flex;align-items:center" set:html={icons.table(11)}></span>
+            <span style="font-family:var(--fonts-mono)">{t.n}</span>
+            <span class={flex1}></span>
+            <span class={monoDisabled} style="font-size:10px">{t.rows}</span>
+          </div>
+          {t.open && routeCols.map((c) => (
+            <div class={tableRowCols} style="padding-left:50px">
+              <span
+                class={tableRowColKey}
+                style={`color:${c.pk ? "var(--colors-warn)" : c.fk ? "var(--colors-info)" : "var(--colors-fg-disabled)"}`}
+              >
+                {c.pk ? (
+                  <span set:html={icons.keyRound(10)}></span>
+                ) : c.fk ? (
+                  <span set:html={icons.link(10)}></span>
+                ) : (
+                  <span style="display:inline-block;width:3px;height:3px;border-radius:9999px;background:var(--colors-fg-disabled)"></span>
+                )}
+              </span>
+              <span class={monoFg}>{c.k}</span>
+              <span class={flex1}></span>
+              <span class={monoDisabled}>{c.t}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* billing schema */}
+      <div class={schemaRow} style="margin-top:6px">
+        <span style="color:var(--colors-fg-disabled);display:flex;align-items:center" set:html={icons.chevronRight(11)}></span>
+        <span style="color:var(--colors-fg-subtle);display:flex;align-items:center" set:html={icons.database(12)}></span>
+        <span>billing</span>
+        <span class={flex1}></span>
+        <span class={schemaCount}>3</span>
+      </div>
+
+      {/* History */}
+      <div class={hrLine}></div>
+      <div class={paneHead}>
+        <span>History</span>
+        <span class={flex1}></span>
+        <span style="font-size:10px;color:var(--colors-fg-disabled)">6</span>
+      </div>
+      {history.map((h) => (
+        <div class={histRow}>
+          <span class={histAt}>{h.at}</span>
+          <span class={histLabel}>{h.label}</span>
+          <span class={histInfo} style={`color:${h.k === "ok" ? "var(--colors-ok)" : "var(--colors-info)"}`}>{h.info}</span>
+        </div>
+      ))}
+    </div>
+
+    {/* AI bar */}
+    <div class={aiBar}>
+      <div class={aiHead}>
+        <span style="color:var(--colors-accent);display:flex;align-items:center" set:html={icons.sparkles(12)}></span>
+        <span style="color:var(--colors-fg);font-weight:600">Ask httui</span>
+        <span class={flex1}></span>
+        <span class={kbd}>⌘J</span>
+      </div>
+      <div class={aiInput}>
+        <span>Por que kafka está degraded?</span>
+      </div>
+    </div>
+  </div>
+
+  {/* STATUS BAR */}
+  <div class={statusBar}>
+    <span class={statusGroup}>
+      <span set:html={icons.gitBranch(11)}></span>
+      <span>main · 3 changes</span>
+    </span>
+    <span class={vDivider} style="height:12px"></span>
+    <span class={statusGroup}>
+      <span class={dotBase} style={`background:${dotColor.ok}`}></span>
+      <span>connected · staging</span>
+    </span>
+    <span class={vDivider} style="height:12px"></span>
+    <span>pg 18ms</span>
+    <span>api 142ms</span>
+    <span class={vDivider} style="height:12px"></span>
+    <span>Ln 47, Col 12</span>
+    <span class={flex1}></span>
+    <span>UTF-8</span>
+    <span class={vDivider} style="height:12px"></span>
+    <span class={statusGroup} style="color:var(--colors-accent)">
+      <span set:html={icons.zap(10)}></span>
+      <span>chained</span>
+    </span>
+    <span class={vDivider} style="height:12px"></span>
+    <span>httui 0.4.2</span>
+  </div>
+</div>

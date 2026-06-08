@@ -1,0 +1,130 @@
+---
+title: Use variáveis de ambiente
+description: Rode o mesmo runbook contra local, staging e prod trocando uma variável — sem editar 50 referências.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Você tem um runbook que bate em `https://api.example.com/...` e
+precisa que ele bata em `https://staging-api.example.com/...`
+amanhã, depois em `http://localhost:8080/...` no seu laptop semana
+que vem. A resposta: **variáveis de ambiente**.
+
+## O pattern
+
+Escreva o runbook uma vez com referências `{{KEY}}` e defina `KEY`
+uma vez por ambiente em `envs/<env-name>.toml`. Troque de ambiente
+na TopBar; o runbook continua o mesmo.
+
+## Defina uma variável
+
+No seu vault, crie ou edite `envs/local.toml`:
+
+```toml
+[vars]
+BASE_URL = "http://localhost:8080"
+TIMEOUT_MS = 5000
+```
+
+E `envs/staging.toml`:
+
+```toml
+[vars]
+BASE_URL = "https://staging-api.example.com"
+TIMEOUT_MS = 30000
+```
+
+Pronto. O formato do arquivo é TOML puro — uma tabela `[vars]`,
+pares key = value.
+
+## Use a variável num runbook
+
+Em qualquer bloco HTTP / DB / standalone, referencie com `{{KEY}}`
+(sem pontos, sem aspas):
+
+````markdown
+```http alias=health
+GET {{BASE_URL}}/health
+```
+````
+
+Referências resolvem em **URLs, keys/values de header, body,
+queries SQL, parâmetros SQL** — em qualquer lugar onde você
+escreve texto.
+
+<Aside type="tip" title="Por que sem pontos?">
+  Referências entre blocos usam pontos (`{{login.body.token}}`)
+  pra JSON paths. Variáveis de ambiente usam só `{{KEY}}`. Se um
+  alias de bloco e uma env var compartilham nome, o **bloco vence**
+  — roda primeiro, referências resolvem.
+</Aside>
+
+## Troque de ambiente
+
+Clique no **seletor de ambiente** na TopBar (ao lado do nome do
+vault). Escolha `local`, `staging` ou qualquer outro env que você
+definiu. Rerode o bloco — `BASE_URL` resolve pro valor novo, sem
+edição.
+
+O env ativo é persistido em `user.toml` por máquina, então cada
+colega de time pode ter o próprio default.
+
+## Overrides por máquina (gitignored)
+
+Seu `envs/staging.toml` diz `BASE_URL = "https://staging-api.example.com"`,
+mas você faz SSH-tunnel de staging pro seu laptop em
+`localhost:15432`. Não edite o arquivo compartilhado — crie um
+irmão:
+
+```toml title="envs/staging.local.toml"
+[vars]
+BASE_URL = "http://localhost:15432"
+```
+
+O sufixo `.local.toml` é gitignored por padrão (o
+[fluxo de Create vault](/pt-br/docs/tutorials/quickstart#2-crie-seu-primeiro-vault)
+adiciona a regra). Quando `staging` tá ativo, o httui faz merge:
+
+1. `envs/staging.toml` (compartilhado, commitado)
+2. `envs/staging.local.toml` (sua máquina, gitignored)
+
+Os valores `.local` **sobrescrevem** os compartilhados. O arquivo
+do seu colega pode ter formato diferente; ambas as máquinas rodam
+o mesmo runbook contra os túneis delas.
+
+## Variáveis em connection strings
+
+A mesma sintaxe `{{KEY}}` funciona em `connections.toml`:
+
+```toml
+[connections.pg-staging]
+type = "postgres"
+host = "{{PG_HOST}}"
+port = 5432
+database = "payments"
+```
+
+Agora seu `envs/staging.toml` controla em qual Postgres o runbook
+bate. Útil quando você tem read replicas ou quer um env apontando
+pra um snapshot.
+
+## Variáveis vs secrets
+
+Uma env var normal (acima) fica em TOML puro. **Secrets** (senhas,
+tokens de API) passam por outro fluxo — o valor nunca toca o git.
+Veja [Guarde secrets no keychain do SO](/pt-br/docs/how-to/secrets).
+
+## Inspecionando o que resolveu
+
+Faça hover em qualquer `{{...}}` no editor — você vê o valor
+resolvido (ou o erro se não tá definido). Quando um bloco roda, a
+aba **Raw** do painel de request mostra o texto literal enviado
+pela conexão — referências já estão substituídas.
+
+## Gotchas comuns
+
+| Sintoma | Causa | Correção |
+|---|---|---|
+| `{{BASE_URL}}` aparece literal na response | Sem env ativo ou key fora de `[vars]` | Clique no seletor de env da TopBar; cheque a grafia |
+| Valor diferente do esperado | Override `.local.toml` ativo | Abra `envs/<env>.local.toml` e revise |
+| Variável resolve pra `__KEYCHAIN__` | Marcada como secret, keychain travado / entrada faltando | Veja [guia de secrets](/pt-br/docs/how-to/secrets) |

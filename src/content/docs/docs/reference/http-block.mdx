@@ -1,0 +1,168 @@
+---
+title: HTTP block
+description: Complete reference for the http fenced block — info-string tokens, body modes, methods, code generation.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The HTTP block is a fenced markdown code block with the language
+`http`. Body is plain HTTP-message text: a request line, headers,
+blank line, body.
+
+## Minimal example
+
+````markdown
+```http
+GET https://api.example.com/users
+```
+````
+
+That alone runs. Add headers and body as needed.
+
+## Full anatomy
+
+````markdown
+```http alias=fetch-user timeout=10000 display=split mode=raw
+GET https://api.example.com/users?page=1
+Authorization: Bearer {{TOKEN}}
+Accept: application/json
+X-Request-Id: {{uuid}}
+
+# (request body would go here, after a blank line)
+```
+````
+
+## Info-string tokens
+
+Everything after `http` on the fence line is **info string** — flags
+that configure the block. Order is `alias → timeout → display → mode`
+(canonical write order; httui reformats to this).
+
+| Token | Default | Notes |
+|---|---|---|
+| `alias=<name>` | none | Required for capture/chain. `<name>` follows identifier rules (letters, digits, `_`, `-`). |
+| `timeout=<ms>` | `30000` | Request timeout in milliseconds. Includes connect + body. |
+| `display=<mode>` | `split` | Panel layout: `input`, `output`, or `split`. |
+| `mode=<mode>` | `raw` | Body editor mode: `raw` (HTTP-message text) or `form` (tabular params/headers/body). |
+
+## Supported methods
+
+`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`.
+
+The method is the **first word on the body's first line**. The toolbar
+method picker colours that word according to the verb, so the verb
+is always glanceable.
+
+## Body
+
+After a blank line separating headers from body, you can put any
+text. httui sends it as-is — `Content-Type` from your headers tells
+the server how to parse it.
+
+For form mode, switch via the `[raw│form]` toggle in the toolbar —
+the body line becomes a tabular **Params / Headers / Body** editor.
+The serialized fence stays in canonical HTTP-message format
+regardless of which mode you authored in.
+
+## Streaming
+
+httui streams the response — the response panel updates the headers
+the instant they arrive (`ttfb` shows), then body chunks accumulate
+in the **Body** tab. For multi-MB responses the panel stays
+responsive (no client-side hang).
+
+**Cancel mid-stream**: `Cmd+.` (or click the toolbar **Stop**
+button). The backend's tokio select observes the cancel signal at
+every chunk boundary, so even mid-body cancel works (returns
+`[cancelled]`, partial bytes are discarded).
+
+## Body size cap
+
+`MAX_BODY_BYTES = 100 MB`. Above this, the executor short-circuits
+with `[body_too_large]` to defend against OOM on accidental
+downloads. Use the **Send-as cURL** action for large downloads
+where you'd want to pipe to `>`.
+
+## Response panel tabs
+
+| Tab | Content |
+|---|---|
+| **Body** | Pretty-printed by content type — JSON, XML, HTML, SVG via CodeMirror viewer; binary as base64 + size; images inline |
+| **Headers** | Response headers, sorted, sticky-search |
+| **Cookies** | Parsed `Set-Cookie` values with attributes |
+| **Timing** | `total`, `ttfb`, plus `dns`, `connect`, `tls`, `connection_reused` (when available) |
+| **Raw** | Full wire text — already-resolved references substituted |
+
+## References in HTTP blocks
+
+`{{...}}` resolves in:
+
+- URL (path + query)
+- Header keys
+- Header values
+- Body (any content type)
+
+Not in info-string tokens. See
+**[Reference values between blocks](/docs/how-to/references)**.
+
+## Keyboard
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+Enter` | Run block (cursor anywhere in body) |
+| `Cmd+.` | Cancel running block |
+| `Cmd+Shift+C` | Copy as cURL |
+
+## Code generation (Send-as)
+
+The status-bar `⤓` menu exports the current block as:
+
+- **cURL** — `Cmd+Shift+C` shortcut
+- **fetch** — browser/Node
+- **Python `requests`**
+- **HTTPie**
+- **Plain `.http` file** — REST Client / IntelliJ format
+
+References resolve to their **current cached values** in the export,
+so `{{BASE_URL}}` becomes the literal URL in the snippet.
+
+The clipboard write happens synchronously inside the click handler —
+no `await` between click and write — so the browser's user-gesture
+window stays open. (You won't see a "permission denied" silent
+fail.)
+
+## Cache
+
+Block results cache by SHA-256 of:
+
+```
+method + URL with sorted-encoded params + sorted headers + body
+  + env snapshot (only the env vars actually referenced)
+```
+
+Mutation methods (`POST`, `PUT`, `PATCH`, `DELETE`) are **never
+served from cache** — they always re-execute. GET/HEAD/OPTIONS use
+the cache; click the toolbar gear → **Clear cache** to force a
+re-run.
+
+## Run history
+
+Each execution writes a metadata row to `block_run_history` in
+SQLite — method, URL, status, sizes, elapsed, timestamp. **Bodies
+are NOT stored** (privacy). Last 10 runs per `(file_path, alias)`
+are kept; click the toolbar **History** icon to see them.
+
+## Common errors
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Invalid HTTP token` | Header key resolved to a value with spaces | Check `{{...}}` in your header keys |
+| `Request cancelled` | You hit `Cmd+.` or the timeout expired | Increase `timeout=` or wait less aggressively |
+| `[body_too_large]` | Response exceeded 100 MB | Use **Send-as cURL** + pipe to disk |
+| `Failed to connect` | DNS / network / firewall | Check `BASE_URL`, `nslookup`, etc |
+
+## Related
+
+- **[Quickstart](/docs/tutorials/quickstart)** — your first HTTP block
+- **[Chained API test](/docs/tutorials/chained-api)** — login → me → assert
+- **[Block references](/docs/reference/block-references)** — `{{alias.body.X}}` syntax

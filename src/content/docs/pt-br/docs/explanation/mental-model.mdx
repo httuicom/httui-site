@@ -1,0 +1,150 @@
+---
+title: O modelo mental
+description: Um runbook é documentação e ferramenta ao mesmo tempo. Entender essa distinção é o que faz o httui clicar.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Se você já usou Postman, Insomnia ou um arquivo `.http` do
+JetBrains, você já sabe como fazer requests HTTP de um editor. O
+twist do httui não é *o que* você pode fazer — é *o que cada
+arquivo é*. Essa página explica o modelo mental que guia toda
+decisão de design.
+
+## A grande ideia
+
+Um **runbook** é um arquivo `.md` que é **simultaneamente**:
+
+| Papel | O que significa |
+|---|---|
+| **Documentação** | Prosa markdown — headings, listas, código, links — legível em qualquer viewer markdown, diffable no git, indexável pelo Obsidian |
+| **Uma ferramenta** | Dentro dele, blocos fenced (```http, ```db-pg) **executam** — batem em APIs reais, fazem query em bancos reais, capturam responses |
+
+O mesmo parágrafo que explica "primeiro batemos em `/auth/login`
+pra pegar um token" fica **do lado** do bloco HTTP real que faz
+isso. Quando o formato muda, você arruma um arquivo, não três
+(docs, coleção do Postman, script de shell).
+
+## Por que isso colapsa quatro ferramentas
+
+A maioria dos times tem lugares separados pra cada um:
+
+| Ferramenta | O que guarda |
+|---|---|
+| Notion / Confluence | A narrativa — "é assim que o fluxo de pagamentos funciona" |
+| Postman / Insomnia | As requests HTTP, num JSON proprietário |
+| DBeaver / TablePlus | As queries SQL, num painel de saved-queries |
+| Um `playbook.sh` | A cadeia — "primeiro chame A, depois B com o token de A" |
+
+Cada ferramenta tem o próprio formato, o próprio estado, o próprio
+auth. A **narrativa deriva** das requests, que derivam das
+queries, que derivam do script.
+
+Um runbook é **um arquivo .md** que contém os quatro. Commite no
+git, seu time tem a mesma source of truth — a documentação
+literalmente *é* a ferramenta.
+
+## O modelo de blocos
+
+Dentro de um runbook, **blocos** são as unidades executáveis. Cada
+um é um bloco de código fenced com uma linguagem especial:
+
+| Fence | O que roda |
+|---|---|
+| `\`\`\`http` | Uma request HTTP |
+| `\`\`\`db-&lt;conn&gt;` | Uma query SQL contra a conexão `&lt;conn&gt;` |
+| `\`\`\`diff` | Viewer de diff standalone (entre dois painéis de texto) |
+
+O **body** de um bloco é só texto — uma mensagem HTTP, uma
+statement SQL. Clique no botão ▶ (ou `Cmd+Enter`) e o httui manda
+a request, mostra a response inline abaixo do bloco.
+
+Blocos **referenciam** uns aos outros via
+`{{alias.body.field}}`. O grafo de dependências é automático —
+rodar bloco B que referencia A roda A primeiro.
+
+## O runbook é o artefato
+
+Um runbook é **a menor unidade de valor** no httui. Alguns
+exemplos:
+
+| Runbook | O que faz |
+|---|---|
+| `smoke-staging.md` | 5 blocos HTTP contra staging, cada um com `# expect:` — seu smoke test de CI |
+| `debug-2026-06-issue.md` | Notas + cadeias curl usadas pra debugar um incidente específico, arquivado pra post-mortems futuros |
+| `payments-flow.md` | A spec viva do fluxo de pagamentos — narrativa + as chamadas reais, mantidas em sync porque vivem juntas |
+| `daily-checks.md` | 12 blocos que você roda toda manhã pra verificar que o env de dev tá saudável |
+
+Cada um é **um arquivo markdown num repo git**. Code review de
+pull request. Diff entre commits. Code-review da spec de API.
+
+## Vault: o workspace
+
+Um **vault** é uma pasta que guarda muitos runbooks mais
+configuração compartilhada:
+
+```
+~/payments-runbooks/             # o vault
+├── runbooks/
+│   ├── smoke-staging.md         # runbook
+│   ├── debug-incident-42.md     # runbook
+│   └── flows/
+│       ├── refund.md            # runbook
+│       └── chargeback.md        # runbook
+├── connections.toml             # setups de conexão DB compartilhados
+└── envs/
+    ├── staging.toml             # variáveis por env
+    └── prod.toml
+```
+
+Quando você faz `git clone` do vault em outra máquina, **tudo
+necessário pra rodar os runbooks viaja junto** — exceto seus
+secrets (esses ficam no keychain do seu SO, veja
+[Guarde secrets](/pt-br/docs/how-to/secrets)).
+
+## O modelo de execução num parágrafo
+
+Você aperta `Cmd+Enter` num bloco. O httui faz parse do body,
+resolve todas as referências `{{...}}` (rodando blocos upstream
+se necessário — auto-execução pela DAG), substitui os valores
+resolvidos, despacha a request e streama a response de volta pra
+um painel abaixo do bloco. A response é cacheada por hash de
+conteúdo, então da próxima vez que você referenciar esse bloco de
+outro lugar, é instantâneo a não ser que os inputs mudem.
+
+É isso. Sem step de build, sem compile, sem "salva então roda de
+outra janela". Edit inline → run inline → resultado inline.
+
+## O problema da narrativa que deriva (e a correção)
+
+O problema do mundo de quatro ferramentas:
+
+```
+Terça:
+  Wiki:        "POST /v2/payments retorna { id, status }"
+  Postman:     POST /v2/payments → 200 { id }   ← schema derivou, sem `status` ainda
+  Shell:       jq .id (ok)
+
+Quarta: Time de API adiciona `status` na response.
+
+Quinta:
+  Wiki:        inalterada — ainda diz { id, status }
+  Postman:     inalterada — sua collection
+  Shell:       ainda funciona (só lê .id)
+  → Wiki tá errada. Ninguém sabe.
+```
+
+A correção no httui: o texto da wiki e a request vivem no mesmo
+arquivo. Quando você edita o runbook pra adicionar
+`{{create.body.status}}`, a request, a response E a prosa todas
+refletem o formato novo. **Drift vira um merge conflict**, não
+uma desatualização silenciosa.
+
+## Pra onde ir agora
+
+Você tem o modelo mental. Agora:
+
+- **[Quickstart](/pt-br/docs/tutorials/quickstart)** — faça um em 10 minutos
+- **[Por que markdown?](/pt-br/docs/explanation/why-markdown)** — vs Postman / .http / Insomnia
+- **[Como funciona por baixo dos panos](/pt-br/docs/explanation/how-it-works)** — execução, referências, storage
+- **[Local-first](/pt-br/docs/explanation/local-first)** — sem cloud, sem telemetria, por quê
