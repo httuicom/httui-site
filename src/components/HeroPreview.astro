@@ -2,6 +2,7 @@
 import { css } from "../../styled-system/css";
 import WindowChrome from "./previews/WindowChrome.astro";
 import WorkbenchPreview from "./previews/WorkbenchPreview.astro";
+import { withBase } from "../lib/i18n";
 
 // Workbench is built at 1480×940 (designed for desktop). Even at scale 0.5
 // it overflows mobile/tablet viewports and looks cramped. Render only at lg+;
@@ -82,8 +83,8 @@ const scaler = css({
   <div class={bgWrap}>
     <img
       class={bgImg}
-      src="/hero-1920.jpg"
-      srcset="/hero-768.jpg 768w, /hero-1920.jpg 1920w"
+      src={withBase("/hero-1920.jpg")}
+      srcset={`${withBase("/hero-768.jpg")} 768w, ${withBase("/hero-1920.jpg")} 1920w`}
       sizes="100vw"
       alt=""
       loading="eager"
@@ -93,7 +94,7 @@ const scaler = css({
     />
     <img
       class={bgImg}
-      src="/hero-dark.png"
+      src={withBase("/hero-dark.png")}
       alt=""
       loading="eager"
       decoding="async"

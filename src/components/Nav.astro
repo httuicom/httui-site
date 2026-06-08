@@ -2,7 +2,7 @@
 import { css } from "../../styled-system/css";
 import Logo from "./Logo.astro";
 import Pill from "./Pill.astro";
-import { stats, repoUrl } from "../lib/i18n";
+import { stats, repoUrl, withBase } from "../lib/i18n";
 
 interface Props {
   lang?: "en" | "pt-br" | "es";
@@ -17,7 +17,7 @@ const labels = {
 };
 const t = labels[lang];
 
-const docsHref = lang === "en" ? "/docs/getting-started" : `/${lang}/docs/getting-started`;
+const docsHref = withBase(lang === "en" ? "/docs/getting-started" : `/${lang}/docs/getting-started`);
 
 const links = [
   { t: t.install, href: "#install" },

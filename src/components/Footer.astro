@@ -1,7 +1,7 @@
 ---
 import { css } from "../../styled-system/css";
 import Logo from "./Logo.astro";
-import { repoUrl, stats } from "../lib/i18n";
+import { repoUrl, stats, withBase } from "../lib/i18n";
 
 interface Props {
   lang?: "en" | "pt-br" | "es";
@@ -9,7 +9,7 @@ interface Props {
 const { lang = "en" } = Astro.props;
 
 const blob = `${repoUrl}/blob/main`;
-const docsBase = lang === "en" ? "/docs" : `/${lang}/docs`;
+const docsBase = withBase(lang === "en" ? "/docs" : `/${lang}/docs`);
 
 const copy = {
   en: {
