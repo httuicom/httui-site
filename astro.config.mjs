@@ -5,8 +5,7 @@ import sitemap from "@astrojs/sitemap";
 import remarkGfm from "remark-gfm";
 
 export default defineConfig({
-  site: "https://httuicom.github.io",
-  base: "/httui-site",
+  site: "https://httui.com",
   trailingSlash: "ignore",
 
   markdown: {
